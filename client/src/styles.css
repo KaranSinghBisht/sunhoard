@@ -1,0 +1,661 @@
+@font-face {
+  font-family: "Pixelify Sans";
+  src: url("/assets/vendor/pixelify-sans/PixelifySans[wght].ttf") format("truetype");
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+/* Colours come from the Ninja Adventure palette the art uses (docs/ART.md). */
+:root {
+  --ink: #141b1b;
+  --dusk: #3b3643;
+  --night: #4a5270;
+  --snow: #f2eaf1;
+  --gold: #ffe18d;
+  --warm: #ffbc75;
+  --ember: #ef914f;
+  --bark: #965340;
+  --teal: #71ddee;
+  --moss: #adbc3a;
+  --rose: #ef9597;
+  --panel: rgba(20, 27, 27, 0.94);
+  --soft: #d3d7e6;
+  /*
+   * Pixelify Sans is drawn 11 pixels to the em, so it is only sharp at 11 px steps (5.5 on a 2× screen).
+   * Every size in this file is one of these two.
+   */
+  --text: 16.5px;
+  --head: 22px;
+  color: var(--snow);
+  background: var(--ink);
+  font-family: "Pixelify Sans", sans-serif;
+  font-size: var(--text);
+  line-height: 1.3;
+  /* The font's "fi" and "fl" ligatures read as other letters at these sizes. */
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "dlig" 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(ellipse at 50% 0%, #232b3d 0%, var(--ink) 62%);
+  min-height: 100vh;
+}
+
+h1,
+h2,
+p,
+ul,
+dl,
+dd {
+  margin: 0;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+/*
+ * One weight everywhere but the title. The font's bold is not drawn on the 11-pixel grid, so it comes out
+ * soft and its letters close up; headings are told apart by colour and size instead.
+ */
+h2,
+strong,
+b,
+dt,
+button {
+  font-weight: 400;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* Buttons: a lit lantern-gold key with a bark underside that sinks when pressed. */
+button {
+  font: inherit;
+  color: var(--ink);
+  background: var(--warm);
+  border: 2px solid var(--ink);
+  box-shadow: 0 3px 0 var(--bark);
+  padding: 7px 12px;
+  cursor: pointer;
+  line-height: 1.15;
+}
+
+button:hover:not(:disabled) {
+  background: var(--gold);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--bark);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
+button:disabled {
+  background: var(--night);
+  color: var(--soft);
+  box-shadow: 0 3px 0 var(--dusk);
+  cursor: default;
+}
+
+button.quiet {
+  background: var(--panel);
+  color: var(--snow);
+  border-color: var(--night);
+  box-shadow: none;
+}
+
+button.quiet:hover:not(:disabled) {
+  background: var(--dusk);
+}
+
+button.begin {
+  font-size: var(--head);
+  padding: 10px 22px;
+}
+
+/* Layout: the canvas is the page. The HUD sits on top of it, the panels beside or over it. */
+.app {
+  min-height: 100vh;
+  display: grid;
+  justify-content: center;
+  align-content: center;
+  padding: 12px;
+}
+
+.frame {
+  width: var(--stage-w);
+  display: grid;
+  /* One column exactly as wide as the canvas, so a long HUD note is cut short instead of stretching the page. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.view {
+  position: relative;
+  line-height: 0;
+}
+
+.view > * {
+  line-height: 1.3;
+}
+
+.stage canvas {
+  display: block;
+  image-rendering: pixelated;
+  box-shadow:
+    0 0 0 2px var(--ink),
+    0 0 0 4px var(--night),
+    0 18px 60px rgba(0, 0, 0, 0.6);
+}
+
+.side {
+  position: absolute;
+  width: 240px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.wide .side.left {
+  top: 0;
+  right: calc(100% + 16px);
+}
+
+.wide .side.right {
+  top: 0;
+  left: calc(100% + 16px);
+}
+
+.tight .side.left {
+  left: 8px;
+  bottom: 8px;
+}
+
+.tight .side.right {
+  right: 8px;
+  top: 8px;
+}
+
+.tight .txlog li:nth-child(n + 5) {
+  display: none;
+}
+
+/* HUD */
+.hud {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+  padding: 6px 8px;
+  background: var(--panel);
+  border: 2px solid var(--night);
+}
+
+.brand {
+  color: var(--gold);
+  font-size: var(--head);
+  letter-spacing: 1px;
+  text-shadow: 0 2px 0 var(--bark);
+  margin-right: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 8px;
+  background: var(--dusk);
+  border: 1px solid var(--night);
+  white-space: nowrap;
+}
+
+.chip b {
+  color: var(--gold);
+}
+
+.chip.pot b {
+  color: var(--teal);
+}
+
+.chip img {
+  width: 14px;
+  height: 14px;
+  image-rendering: pixelated;
+}
+
+.note {
+  flex: 1;
+  min-width: 0;
+  color: var(--warm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Panels */
+.panel {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 2px solid var(--night);
+  color: var(--snow);
+}
+
+.panel h2 {
+  font-size: var(--text);
+  color: var(--gold);
+}
+
+.dim {
+  color: var(--soft);
+  font-size: var(--text);
+}
+
+.tally b {
+  color: var(--teal);
+}
+
+.txlog li {
+  display: grid;
+  grid-template-columns: 1fr auto 60px;
+  gap: 6px;
+  align-items: baseline;
+  font-size: var(--text);
+  padding: 2px 0;
+  border-top: 1px solid var(--dusk);
+}
+
+.txlog .what {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.txlog .ms {
+  color: var(--warm);
+}
+
+.txlog .ms.quick {
+  color: var(--moss);
+}
+
+.txlog a {
+  color: var(--teal);
+  text-align: right;
+}
+
+.bad .what {
+  color: var(--rose);
+}
+
+.rail {
+  align-items: stretch;
+}
+
+/* The gate: what stands between a visitor and the chain. */
+.gate {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  max-width: calc(100% - 520px);
+  min-width: 300px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border: 2px solid var(--gold);
+  line-height: 1.3;
+}
+
+.gate p {
+  font-size: var(--text);
+}
+
+/* The tale: a title card over the drifting meadow. */
+.guide {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: radial-gradient(ellipse at center, rgba(20, 27, 27, 0.35) 0%, rgba(20, 27, 27, 0.88) 78%);
+  overflow: auto;
+}
+
+.card {
+  width: min(560px, 100%);
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  text-align: center;
+  padding: 22px 26px;
+  background: rgba(20, 27, 27, 0.8);
+  border: 2px solid var(--night);
+  box-shadow:
+    0 0 0 2px var(--ink),
+    0 24px 80px rgba(0, 0, 0, 0.7);
+}
+
+.kicker {
+  color: var(--teal);
+  font-size: var(--head);
+  letter-spacing: 1px;
+}
+
+.guide h1 {
+  font-size: 88px;
+  line-height: 0.85;
+  color: var(--gold);
+  text-shadow:
+    0 4px 0 var(--ember),
+    0 8px 0 var(--bark),
+    0 0 42px rgba(255, 188, 117, 0.55);
+}
+
+.story {
+  display: grid;
+  gap: 4px;
+  font-size: var(--text);
+}
+
+.story p:last-child {
+  color: var(--warm);
+}
+
+.keys {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+  padding: 10px 14px;
+  border-top: 1px solid var(--night);
+  border-bottom: 1px solid var(--night);
+  width: 100%;
+}
+
+.keys div {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 10px;
+  align-items: center;
+  text-align: left;
+  width: 100%;
+}
+
+.keys dt {
+  justify-self: start;
+  padding: 2px 8px;
+  color: var(--ink);
+  background: var(--snow);
+  border: 2px solid var(--ink);
+  box-shadow: 0 2px 0 var(--night);
+  white-space: nowrap;
+}
+
+.built {
+  color: var(--soft);
+  font-size: var(--text);
+}
+
+button.small {
+  padding: 2px 8px;
+  justify-self: start;
+}
+
+/* The first night: the tracker in the canvas's top-left corner. It stays inside the cellar's dark margin. */
+.quest {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  width: 288px;
+  border-color: var(--gold);
+  animation: rise 240ms ease-out;
+}
+
+/* Beside the cellar room: no wider than the dark margin, which is a fifth of the canvas. */
+.quest.narrow {
+  width: max(176px, calc(var(--stage-w) * 0.2 - 16px));
+}
+
+.quest h2 {
+  font-size: var(--text);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.quest.done p {
+  color: var(--warm);
+}
+
+/* The opening: the tale's lines in a band at the canvas foot. The sky stays clear above. */
+.cinema {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: end;
+  cursor: pointer;
+  background: linear-gradient(to top, rgba(20, 27, 27, 0.92) 0%, rgba(20, 27, 27, 0.92) 24%, rgba(20, 27, 27, 0) 46%);
+  animation: fade 500ms ease-out;
+}
+
+.in-cinema .hud {
+  visibility: hidden;
+}
+
+.caption {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  padding: 0 8% 18px;
+  text-align: center;
+}
+
+.caption .typed {
+  font-size: max(var(--head), calc(var(--zoom) * 11px));
+  color: var(--snow);
+  text-shadow: 0 2px 0 var(--ink);
+  max-width: 34em;
+}
+
+.typed .ghost {
+  visibility: hidden;
+}
+
+.caption-foot {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.pips {
+  display: inline-flex;
+  gap: 5px;
+}
+
+.pips i {
+  width: 8px;
+  height: 8px;
+  background: var(--night);
+  border: 1px solid var(--ink);
+}
+
+.pips i.lit {
+  background: var(--gold);
+}
+
+/* Rings the hole in the sky where noon should be: the disc sits at (452, 12) on the 480×270 canvas. */
+.noon-ring {
+  position: absolute;
+  left: calc(452 / 480 * 100%);
+  top: calc(12 / 270 * 100%);
+  width: calc(var(--stage-w) * 0.07);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border: 2px solid var(--gold);
+  border-radius: 50%;
+  box-shadow: 0 0 18px rgba(255, 225, 141, 0.7);
+  animation: ring 1400ms ease-in-out infinite;
+}
+
+/* Someone speaking: a face, a name and a line, where the gate would be. */
+.talk {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  width: min(640px, calc(100% - 520px));
+  min-width: 320px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 2px solid var(--gold);
+  cursor: pointer;
+  animation: rise 200ms ease-out;
+}
+
+.talk img {
+  width: 76px;
+  height: 76px;
+  image-rendering: pixelated;
+  border: 2px solid var(--night);
+  grid-row: span 2;
+}
+
+.talk strong {
+  color: var(--gold);
+}
+
+.talk strong {
+  font-size: var(--head);
+}
+
+.talk .typed {
+  min-height: 2.6em;
+}
+
+.talk > .dim {
+  grid-column: 2;
+  justify-self: end;
+}
+
+/* The tag over whatever Space would use. The scene says where; the page draws the words. */
+.tag {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 3px 10px 4px;
+  color: var(--ink);
+  background: var(--gold);
+  border: 2px solid var(--ink);
+  box-shadow: 0 3px 0 rgba(20, 27, 27, 0.45);
+  font-size: max(var(--text), calc(var(--zoom) * 5.5px));
+  white-space: nowrap;
+  pointer-events: none;
+  animation: bob 900ms steps(2, jump-none) infinite alternate;
+}
+
+/* The line under the fight in the cellar. */
+.room-note {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  padding: 6px 14px;
+  background: var(--panel);
+  border: 2px solid var(--night);
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.room-note .badge {
+  color: var(--gold);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+
+@keyframes bob {
+  to {
+    translate: 0 -2px;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes ring {
+  50% {
+    width: calc(var(--stage-w) * 0.1);
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quest,
+  .cinema,
+  .talk,
+  .tag,
+  .noon-ring {
+    animation: none;
+  }
+}
+
+/* The wallet adapter's own button, brought into line. */
+.wallet-adapter-button {
+  font-family: "Pixelify Sans", sans-serif !important;
+  font-size: var(--text) !important;
+  font-weight: 400 !important;
+  height: 34px !important;
+  padding: 0 12px !important;
+  background: var(--ember) !important;
+  color: var(--ink) !important;
+  border: 2px solid var(--ink) !important;
+  border-radius: 0 !important;
+  line-height: 1.2 !important;
+  white-space: nowrap;
+}
+
+.wallet-adapter-button:hover:not(:disabled) {
+  background: var(--warm) !important;
+}
+
+@media (max-width: 760px) {
+  .guide h1 {
+    font-size: 55px;
+  }
+
+  .chip.pot,
+  .brand {
+    display: none;
+  }
+}
