@@ -1,0 +1,7 @@
+#!/bin/sh
+# Copies the generated IDL into the client. Do not edit the copy by hand.
+set -eu
+root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+mkdir -p "$root/client/src/gen/idl"
+cp "$root/target/idl/sunhoard.json" "$root/client/src/gen/idl/sunhoard.json"
+echo "copied $root/client/src/gen/idl/sunhoard.json"

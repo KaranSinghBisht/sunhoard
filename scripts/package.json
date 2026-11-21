@@ -1,0 +1,9 @@
+{
+  "name": "sunhoard-scripts",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@coral-xyz/anchor": "1.0.2",
+    "@solana/web3.js": "1.98.4"
+  }
+}
