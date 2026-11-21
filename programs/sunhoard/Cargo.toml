@@ -1,0 +1,53 @@
+[package]
+name = "sunhoard"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Sunhoard program. Rules live in logic/; instructions call them."
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "sunhoard"
+
+[features]
+default = []
+debug = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+custom-heap = []
+custom-panic = []
+anchor-debug = []
+
+[dependencies]
+anchor-lang = { version = "=1.0.2", features = ["init-if-needed"] }
+# These are `^1.0.2` inside anchor-lang, so without an exact pin Cargo
+# selects 1.2.2 and the derives no longer match the 1.0.2 runtime.
+anchor-attribute-access-control = "=1.0.2"
+anchor-attribute-account = "=1.0.2"
+anchor-attribute-constant = "=1.0.2"
+anchor-attribute-error = "=1.0.2"
+anchor-attribute-event = "=1.0.2"
+anchor-attribute-program = "=1.0.2"
+anchor-derive-accounts = "=1.0.2"
+anchor-derive-serde = "=1.0.2"
+anchor-derive-space = "=1.0.2"
+anchor-syn = "=1.0.2"
+ephemeral-rollups-sdk = { version = "=0.16.2", features = [
+    "anchor",
+    "access-control",
+    "vrf",
+    "crank",
+    "instruction",
+] }
+magicblock-magic-program-api = { version = "=0.10.1", default-features = false }
+session-keys = { version = "=3.1.1", features = ["no-entrypoint"] }
+sha2 = { version = "0.10.8", default-features = false }
+bytemuck = { version = "1.17", features = ["derive", "min_const_generics"] }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(target_os, values("solana"))',
+] }
