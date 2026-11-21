@@ -16,7 +16,7 @@ Milestone: M1 loop is in the client · Updated: Sat Nov 21, 6:50 PM IST
 - Restart Cursor so its terminals use the new PATH.
 - About 5 more devnet SOL on the admin key before the first deploy. Not deployed.
 - `ER_URL` for the devnet rollup, in `scripts/.env`. The local MagicSVM run does not need it.
-- No commit yet. Say if this checkpoint should be committed.
+- Committed and pushed on the student's request, Sat Nov 21, 7:45 PM IST ✅: six commits on `main` at `https://github.com/KaranSinghBisht/sunhoard` (private). The submission checklist in `blitz/README.md` wants the repo public and accessible; the student flips it before submitting.
 
 ## Decisions (what changed from docs/, and why)
 - See `progress/A.md` and `progress/D.md`. No design number was changed. Villagers stay Wednesday's extra.
