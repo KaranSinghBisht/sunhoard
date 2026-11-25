@@ -235,6 +235,11 @@ button.begin {
   image-rendering: pixelated;
 }
 
+.mute.off {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+
 .note {
   flex: 1;
   min-width: 0;
@@ -257,6 +262,52 @@ button.begin {
 .panel h2 {
   font-size: var(--text);
   color: var(--gold);
+}
+
+.slots {
+  display: grid;
+  gap: 4px;
+  max-height: 26vh;
+  overflow-y: auto;
+}
+
+.slots li,
+.recipes li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  align-items: baseline;
+  font-size: var(--text);
+}
+
+.slots .what {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slots .acts {
+  display: flex;
+  gap: 4px;
+}
+
+.slots .equipped .what {
+  color: var(--gold);
+}
+
+.recipes {
+  display: grid;
+  gap: 4px;
+  max-height: 30vh;
+  overflow-y: auto;
+}
+
+.recipes button {
+  text-align: left;
+}
+
+.recipes .dim {
+  text-align: right;
 }
 
 .dim {

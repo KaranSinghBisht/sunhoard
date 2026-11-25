@@ -9,6 +9,15 @@ export function formatHundredths(value: bigint): string {
   return `${negative ? "-" : ""}${whole}.${frac}`;
 }
 
+/** Reads what a player typed as Glints into hundredths; null when it is not an amount. */
+export function parseGlints(text: string): bigint | null {
+  const typed = text.trim();
+  if (typed === "") return 0n;
+  const match = /^(\d{1,9})(?:\.(\d{1,2}))?$/.exec(typed);
+  if (!match) return null;
+  return BigInt(match[1]) * 100n + BigInt((match[2] ?? "").padEnd(2, "0"));
+}
+
 const PLAIN_LIMIT = 90;
 const ADDRESS = /[1-9A-HJ-NP-Za-km-z]{32,}/;
 

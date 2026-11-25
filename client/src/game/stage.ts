@@ -2,7 +2,7 @@ import type Phaser from "phaser";
 import { create } from "zustand";
 import { clearLabels } from "./labels";
 
-export type SceneKey = "overworld" | "cellar";
+export type SceneKey = "overworld" | "cellar" | "lair";
 
 /** Which scene is on the canvas, for the overlays that only belong to one of them. */
 export const useStage = create<{ scene: SceneKey }>(() => ({ scene: "overworld" }));

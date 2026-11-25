@@ -163,7 +163,11 @@ async function place(current: Play | null, owner: PublicKey, report: MoveReport)
   }
 }
 
-async function chopAt(current: Play, owner: PublicKey, report: { x: number; y: number; nodeX: number; nodeY: number }): Promise<void> {
+async function chopAt(
+  current: Play,
+  owner: PublicKey,
+  report: { x: number; y: number; nodeX: number; nodeY: number; node?: number },
+): Promise<void> {
   const placed = await place(current, owner, { x: report.x, y: report.y, facing: 0 });
   if (!placed) return;
   if (!inRange(current.pace.x, current.pace.y, report.nodeX, report.nodeY)) {
@@ -181,6 +185,7 @@ async function chopAt(current: Play, owner: PublicKey, report: { x: number; y: n
       current.link,
       report.nodeX,
       report.nodeY,
+      report.node ?? 0,
     );
   } catch (err) {
     useHud.getState().setNote(playerMessage(err));

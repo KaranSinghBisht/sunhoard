@@ -1,20 +1,22 @@
 import Phaser from "phaser";
+import { playMusic, playSfx } from "../art/sound";
 import { log } from "../chain/log";
 import { uiText } from "../content/text";
-import { cloneFight, replay, type Fight, type Fighter, type Intent } from "../shared/fight";
+import { cloneFight, replay, SHOT_WICK, type Fight, type Fighter, type Intent } from "../shared/fight";
 import { insideHalfTile, positionError } from "../shared/predict";
 import { ORIGIN_X, ORIGIN_Y, WORLD_H, WORLD_W, roomTiles, sconces, sheetColumn } from "./cellar/room";
 import { pushIntent, readChainFight } from "./fightFeed";
 import { showRoomNote } from "./labels";
 import { Night, NIGHT_BELOW } from "./meadow/night";
 import { practising } from "./practice";
-import { BAT, DUNGEON, KEEPER, MOUSE, SHADOW, SLIME, keeperFrame } from "./sheets";
+import { BAT, DUNGEON, KEEPER, MOUSE, SHADOW, SLIME, SPIRIT_IDLE, keeperFrame } from "./sheets";
 import { tell } from "./story/tale";
 
 const STEP_MS = 100;
 const MAX_AHEAD = 20;
-const FOE_KEYS = ["mouse", "slime", "bat"];
-const FOE_HP = [18, 40, 24];
+const MAX_FOES = 8;
+const FOE_KEYS = ["mouse", "slime", "bat", "spirit"];
+const FOE_HP = [18, 40, 24, 900];
 const KEEPER_HP = 100;
 const HUD_DEPTH = 6000;
 
@@ -32,6 +34,8 @@ export class CellarScene extends Phaser.Scene {
   private acc = 0;
   private samples = 0;
   private inside = 0;
+  private lastAttackCd = 0;
+  private lastKeeperHp = KEEPER_HP;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private keys!: Keys;
   private sent = "";
@@ -46,6 +50,7 @@ export class CellarScene extends Phaser.Scene {
     this.load.spritesheet("mouse", MOUSE, { frameWidth: 16, frameHeight: 16 });
     this.load.spritesheet("slime", SLIME, { frameWidth: 16, frameHeight: 16 });
     this.load.spritesheet("bat", BAT, { frameWidth: 16, frameHeight: 16 });
+    this.load.spritesheet("spirit", SPIRIT_IDLE, { frameWidth: 50, frameHeight: 50 });
     this.load.image("shadow", SHADOW);
   }
 
@@ -53,11 +58,16 @@ export class CellarScene extends Phaser.Scene {
     this.base = null;
     this.seen = -1;
     this.sent = "";
+    this.lastAttackCd = 0;
+    this.lastKeeperHp = KEEPER_HP;
     this.cameras.main.setBackgroundColor("#141b1b").setBounds(0, 0, WORLD_W, WORLD_H);
     for (const tile of roomTiles()) this.add.image(tile.x, tile.y, "dungeon", tile.frame).setDepth(0);
     this.shadow = this.add.image(0, 0, "shadow").setAlpha(0.4).setVisible(false);
     this.keeper = this.add.sprite(ORIGIN_X, ORIGIN_Y, "keeper", 0).setOrigin(0.5, 0.85).setVisible(false);
-    this.foes = FOE_KEYS.map((key) => this.add.sprite(0, 0, key, 0).setOrigin(0.5, 0.85).setVisible(false));
+    // All 8 arena monster slots can render simultaneously (rooms 1-5 hold 5-7 foes).
+    this.foes = Array.from({ length: MAX_FOES }, () =>
+      this.add.sprite(0, 0, "mouse", 0).setOrigin(0.5, 0.85).setVisible(false),
+    );
     this.bars = this.add.graphics().setDepth(HUD_DEPTH);
     this.night = new Night(this, sconces().map((spot) => ({ ...spot, radius: 54, thaw: 0 })), NIGHT_BELOW);
     tell({ kind: "entered" });
@@ -65,6 +75,8 @@ export class CellarScene extends Phaser.Scene {
     this.cursors = this.input.keyboard!.createCursorKeys();
     const add = this.input.keyboard!.addKey.bind(this.input.keyboard);
     this.keys = { a: add("A"), d: add("D"), w: add("W"), s: add("S"), shift: add("SHIFT") };
+    this.events.on("wake", () => playMusic("cellar"));
+    playMusic("cellar");
   }
 
   update(time: number, delta: number): void {
@@ -72,11 +84,10 @@ export class CellarScene extends Phaser.Scene {
     this.follow(intent, delta);
     const view = this.base ? replay(this.base, this.ahead, intent) : null;
     this.paint(view, intent, time, delta);
-    this.night.update(time, { x: this.keeper.x, y: this.keeper.y - 8, radius: 70, thaw: 0 });
+    this.night.update(time, { x: this.keeper.x, y: this.keeper.y - 8, radius: 82, thaw: 0 });
     this.publish(intent);
   }
 
-  /** Runs the local copy of the room ahead of the chain, one step every 100 ms. */
   private follow(intent: Intent, delta: number): void {
     const chain = readChainFight().fight;
     if (chain && chain.stepIndex !== this.seen) this.absorb(chain, intent);
@@ -89,7 +100,6 @@ export class CellarScene extends Phaser.Scene {
     }
   }
 
-  /** A new room state from the chain: keep the guess if it was within half a tile, else snap to the chain. */
   private absorb(chain: Fight, intent: Intent): void {
     const predicted = this.base ? replay(this.base, this.ahead, intent) : chain;
     const error = this.base ? positionError(predicted, chain) : 0;
@@ -115,6 +125,11 @@ export class CellarScene extends Phaser.Scene {
       this.foes.forEach((mark) => mark.setVisible(false));
       return;
     }
+    if (view.player.attackCd > this.lastAttackCd) playSfx("slash", 0.35);
+    this.lastAttackCd = view.player.attackCd;
+    if (view.player.hp < this.lastKeeperHp) playSfx("hit", 0.4);
+    this.lastKeeperHp = view.player.hp;
+
     if (cleared(view)) tell({ kind: "cleared" });
     const ease = Math.min(1, delta / 70);
     const moving = intent.dx !== 0 || intent.dy !== 0;
@@ -123,8 +138,17 @@ export class CellarScene extends Phaser.Scene {
     this.keeper.setAlpha(view.player.invuln > 0 && Math.floor(time / 60) % 2 === 0 ? 0.4 : 1);
     this.shadow.setPosition(this.keeper.x, this.keeper.y + 1).setDepth(this.keeper.y - 0.5);
     this.swing(view.player);
+    this.paintShots(view);
     this.foes.forEach((mark, index) => this.paintFoe(mark, view, index, time, ease));
     this.bar(this.keeper.x - 12, this.keeper.y - 22, 24, view.player.hp / KEEPER_HP, 0xffbc75);
+  }
+
+  private paintShots(view: Fight): void {
+    for (const shot of view.shots) {
+      if (shot.life <= 0) continue;
+      this.bars.fillStyle(shot.kind === SHOT_WICK ? 0xf2eaf1 : 0xff9554, 1);
+      this.bars.fillCircle(ORIGIN_X + shot.x, ORIGIN_Y + shot.y, shot.kind === SHOT_WICK ? 4 : 3);
+    }
   }
 
   private paintFoe(mark: Phaser.GameObjects.Sprite, view: Fight, index: number, time: number, ease: number): void {
@@ -133,13 +157,35 @@ export class CellarScene extends Phaser.Scene {
     mark.setVisible(alive);
     if (!foe || !alive) return;
     glide(mark, foe.body, ease);
-    mark.setFrame((Math.floor(time / 160) % 4) * 4 + sheetColumn(foe.body.facing)).setDepth(mark.y);
-    this.bar(mark.x - 8, mark.y - 20, 16, foe.body.hp / (FOE_HP[foe.kind] ?? 1), 0xef9597);
+    const sprite = FOE_KEYS[foe.kind] ?? "bat";
+    if (mark.texture.key !== sprite) mark.setTexture(sprite);
+    const boss = foe.kind === 3;
+    if (boss) {
+      mark.setScale(1);
+      mark.setTint(view.bossTelegraph > 0 ? 0xff6a5a : 0x79b8ce);
+      mark.setFrame(Math.floor(time / 160) % 5).setDepth(mark.y);
+      this.drawSnufferHat(mark.x, mark.y - 38);
+      if (view.bossTelegraph > 0) {
+        this.bars.lineStyle(1, 0xe0394c, 0.8).strokeCircle(mark.x, mark.y - 16, 26);
+      }
+      this.bar(mark.x - 24, mark.y - 54, 48, foe.body.hp / FOE_HP[3], 0xef9597);
+    } else {
+      mark.setScale(1);
+      mark.setTint(0xffffff);
+      mark.setFrame((Math.floor(time / 160) % 4) * 4 + sheetColumn(foe.body.facing)).setDepth(mark.y);
+      this.bar(mark.x - 8, mark.y - 20, 16, foe.body.hp / (FOE_HP[foe.kind] ?? 1), 0xef9597);
+    }
   }
 
-  /** A short arc in front of the keeper for the first frames after a swing. */
+  /** Code-drawn candle-snuffer cone hat over GiantSpirit (docs/ART.md §6). */
+  private drawSnufferHat(cx: number, topY: number): void {
+    this.bars.fillStyle(0x4e484a, 1).fillRect(cx - 7, topY + 9, 14, 3);
+    this.bars.fillStyle(0x8e7c73, 1).fillTriangle(cx - 6, topY + 9, cx + 6, topY + 9, cx, topY);
+    this.bars.fillStyle(0xabc2bc, 1).fillRect(cx - 1, topY - 2, 2, 2);
+  }
+
   private swing(player: Fighter): void {
-    if (player.attackCd < 3) return;
+    if (player.attackCd < 2) return;
     const turn = [0, 90, 180, 270][player.facing] ?? 0;
     this.bars.lineStyle(2, 0xf2eaf1, 0.9);
     this.bars.beginPath();
@@ -181,10 +227,9 @@ export class CellarScene extends Phaser.Scene {
 }
 
 function cleared(view: Fight): boolean {
-  return view.foes.every((foe) => foe.body.hp <= 0);
+  return view.player.hp > 0 && view.foes.length > 0 && view.foes.every((foe) => foe.body.hp <= 0);
 }
 
-/** Eases a sprite toward a fighter's place in the room, so 10 steps a second read as smooth motion. */
 function glide(mark: Phaser.GameObjects.Sprite, body: Fighter, ease: number): void {
   const x = ORIGIN_X + body.x;
   const y = ORIGIN_Y + body.y;

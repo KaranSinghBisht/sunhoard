@@ -1,14 +1,18 @@
 import { useEffect, useState, type CSSProperties } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { uiText } from "./content/text";
 import { setTouring, useStage } from "./game/stage";
 import { beginTale, firstVisit, useTale } from "./game/story/tale";
+import { BarnPanel } from "./ui/BarnPanel";
 import { CellarButton } from "./ui/CellarButton";
 import { Cinema } from "./ui/Cinema";
 import { ClaimButton } from "./ui/ClaimButton";
+import { ColdfairPanel } from "./ui/ColdfairPanel";
 import { Guide } from "./ui/Guide";
 import { Hud } from "./ui/Hud";
 import { InventoryPanel } from "./ui/InventoryPanel";
 import { Labels } from "./ui/Labels";
+import { LairButton } from "./ui/LairButton";
 import { Meadow } from "./ui/Meadow";
 import { Quest } from "./ui/Quest";
 import { Talk } from "./ui/Talk";
@@ -18,8 +22,12 @@ import { useFit } from "./ui/useFit";
 
 export default function App() {
   const [packOpen, setPackOpen] = useState(false);
+  const [fairOpen, setFairOpen] = useState(false);
+  const [barnOpen, setBarnOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
   const { zoom, wide } = useFit();
+  const { publicKey } = useWallet();
+  const owner = publicKey?.toBase58() ?? "";
   const cinema = useTale((state) => state.beat !== null);
   const talking = useTale((state) => state.talk !== null);
   const onMeadow = useStage((state) => state.scene === "overworld");
@@ -64,11 +72,20 @@ export default function App() {
           </div>
           <div className="side right rail" hidden={!panels}>
             <CellarButton />
+            <LairButton />
             <ClaimButton />
             <button type="button" className="quiet" onClick={() => setPackOpen((open) => !open)}>
               {uiText("pack")}
             </button>
+            <button type="button" className="quiet" onClick={() => setFairOpen((open) => !open)}>
+              {uiText("coldfair")}
+            </button>
+            <button type="button" className="quiet" onClick={() => setBarnOpen((open) => !open)}>
+              {uiText("barn")}
+            </button>
             {packOpen ? <InventoryPanel /> : null}
+            {fairOpen ? <ColdfairPanel owner={owner} /> : null}
+            {barnOpen ? <BarnPanel /> : null}
             <ThawPanel />
           </div>
         </div>

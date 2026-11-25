@@ -9,6 +9,7 @@ export interface ChopReport {
   y: number;
   nodeX: number;
   nodeY: number;
+  node?: number;
 }
 
 interface Bridge {

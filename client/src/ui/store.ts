@@ -8,10 +8,15 @@ interface HudState {
   note: string;
   sessionReady: boolean;
   busy: boolean;
-  setHud: (patch: Partial<Omit<HudState, "setHud" | "setNote" | "setSession" | "setBusy">>) => void;
+  /** A spark sits within scoop reach, in the Crater. */
+  sparkNear: boolean;
+  /** Old Gloam is dead: the season has a killer and Spring has begun. */
+  sunFree: boolean;
+  setHud: (patch: Partial<Omit<HudState, "setHud" | "setNote" | "setSession" | "setBusy" | "setSparkNear">>) => void;
   setNote: (note: string) => void;
   setSession: (sessionReady: boolean) => void;
   setBusy: (busy: boolean) => void;
+  setSparkNear: (sparkNear: boolean) => void;
 }
 
 export const useHud = create<HudState>((set) => ({
@@ -22,8 +27,11 @@ export const useHud = create<HudState>((set) => ({
   note: "",
   sessionReady: false,
   busy: false,
+  sparkNear: false,
+  sunFree: false,
   setHud: (patch) => set(patch),
   setNote: (note) => set({ note }),
   setSession: (sessionReady) => set({ sessionReady }),
   setBusy: (busy) => set({ busy }),
+  setSparkNear: (sparkNear) => set({ sparkNear }),
 }));

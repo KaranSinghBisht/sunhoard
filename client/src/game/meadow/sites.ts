@@ -21,9 +21,19 @@ export const NELL_COL = 22;
 export const NELL_ROW = 17;
 export const CAVE_COL = 52.5;
 export const CAVE_ROW = 18;
+export const BERRY_COL = 18;
+export const BERRY_ROW = 17;
+export const ROCK_COL = 30;
+export const ROCK_ROW = 18;
+export const COAL_COL = 47;
+export const COAL_ROW = 19;
+export const ORE_COL = 48;
+export const ORE_ROW = 22;
 
 const CAMP: Site[] = [
   site("birch", BIRCH_COL, BIRCH_ROW),
+  site("bush", BERRY_COL, BERRY_ROW),
+  site("rockCap", ROCK_COL, ROCK_ROW),
   site("firepit", FIRE_COL, FIRE_ROW),
   site("tent", 28, 15),
   site("birchLogs", 20.5, 15),
@@ -55,6 +65,8 @@ const IGLOOS: Site[] = [
 
 const CAVE: Site[] = [
   site("cave", CAVE_COL, CAVE_ROW),
+  site("tealRock", COAL_COL, COAL_ROW),
+  site("shards", ORE_COL, ORE_ROW),
   site("darkLogs", 50, 17),
   site("barrel", 55, 19),
 ];

@@ -1,18 +1,39 @@
 import Phaser from "phaser";
+import { playMusic, playSfx, unlockAudio } from "../art/sound";
+import { getLive } from "../chain/live";
 import { uiText } from "../content/text";
+import { useHud } from "../ui/store";
+import { useVillage } from "../ui/village";
+import { useWorld } from "../ui/world";
 import { gameBridge, knock } from "./bridge";
 import { hideTag, showTag } from "./labels";
 import { KINDS, SHEET_KEYS, type KindName } from "./meadow/cuts";
 import { GROUND_KEY, paintGround } from "./meadow/ground";
-import { MAP_H, MAP_W, START_X, START_Y, TREE_X, TREE_Y } from "./meadow/layout";
+import { MAP_H, MAP_W, START_X, START_Y } from "./meadow/layout";
 import type { Light } from "./meadow/lights";
 import { Night } from "./meadow/night";
 import { meadow, type Meadow } from "./meadow/props";
-import { FIRE_COL, FIRE_ROW, NELL_COL, NELL_ROW, footX, footY } from "./meadow/sites";
+import { FIRE_COL, FIRE_ROW, LAMPS, NELL_COL, NELL_ROW, footX, footY } from "./meadow/sites";
 import { Sky } from "./meadow/sky";
 import { useAt } from "./meadow/uses";
 import { Waymark } from "./meadow/waymark";
-import { CAMP, DETAIL, FIRE, FLOOR, HOUSE, KEEPER, NATURE, NELL, NELL_FACE, RELIEF, SHADOW, SNOW, keeperColumn, keeperFrame } from "./sheets";
+import {
+  CAMP,
+  DETAIL,
+  FIRE,
+  FLOOR,
+  HOUSE,
+  KEEPER,
+  NATURE,
+  NELL,
+  NELL_FACE,
+  PETAL,
+  RELIEF,
+  SHADOW,
+  SNOW,
+  keeperColumn,
+  keeperFrame,
+} from "./sheets";
 import { BEATS } from "./story/beats";
 import { Director, type Mode } from "./story/director";
 import { ARRIVE_X, ARRIVE_Y, EDGE_X } from "./story/quest";
@@ -21,9 +42,9 @@ import { currentStep, nextBeat, nextLine, speak, tell, useTale } from "./story/t
 const SPEED = 80;
 const REPORT_MS = 500;
 const CARRIED_GLOW = 34;
-/** The Keeper comes up the road at a tired walk during the opening. */
 const WALK_IN_SPEED = 44;
 const RIGHT_COLUMN = 3;
+const TONE_HEX = [0xe0394c, 0xf1c471, 0x79b8ce, 0xa5608b];
 const SHEET_FILES: Record<(typeof SHEET_KEYS)[number], string> = { nature: NATURE, camp: CAMP, house: HOUSE, relief: RELIEF };
 
 type Keys = Record<"a" | "d" | "w" | "s", Phaser.Input.Keyboard.Key>;
@@ -37,6 +58,9 @@ export class OverworldScene extends Phaser.Scene {
   private sky!: Sky;
   private waymark!: Waymark;
   private director!: Director;
+  private peers: Phaser.GameObjects.Sprite[] = [];
+  private postGlows!: Phaser.GameObjects.Graphics;
+  private springStrength = 1;
   private mode: Mode = "play";
   private arrivals = 0;
   private entering = false;
@@ -62,6 +86,7 @@ export class OverworldScene extends Phaser.Scene {
     this.load.spritesheet("nell", NELL, { frameWidth: 16, frameHeight: 16 });
     this.load.spritesheet("snow", SNOW, { frameWidth: 8, frameHeight: 8 });
     this.load.spritesheet("fire", FIRE, { frameWidth: 12, frameHeight: 12 });
+    this.load.spritesheet("petal", PETAL, { frameWidth: 8, frameHeight: 8 });
     this.load.image("shadow", SHADOW);
   }
 
@@ -76,6 +101,10 @@ export class OverworldScene extends Phaser.Scene {
     this.standNell();
     this.shadow = this.add.image(this.x, this.y, "shadow").setAlpha(0.35);
     this.keeper = this.add.sprite(this.x, this.y, "keeper", 0).setOrigin(0.5, 0.85);
+    this.peers = Array.from({ length: 12 }, () =>
+      this.add.sprite(0, 0, "keeper", 0).setOrigin(0.5, 0.85).setTint(0xb8dce5).setVisible(false),
+    );
+    this.postGlows = this.add.graphics().setDepth(5002);
     this.night = new Night(this, this.land.lights);
     this.sky = new Sky(this);
     this.waymark = new Waymark(this, this.land.solid);
@@ -88,6 +117,10 @@ export class OverworldScene extends Phaser.Scene {
     this.keys = { a: add("A"), d: add("D"), w: add("W"), s: add("S") };
     this.input.keyboard!.on("keydown-SPACE", (event: KeyboardEvent) => this.act(event));
     this.input.keyboard!.on("keydown-ENTER", (event: KeyboardEvent) => this.act(event));
+    this.input.keyboard!.on("keydown", () => unlockAudio());
+    this.input.on("pointerdown", () => unlockAudio());
+    this.events.on("wake", () => this.syncMusic());
+    this.syncMusic();
   }
 
   update(time: number, delta: number): void {
@@ -103,12 +136,66 @@ export class OverworldScene extends Phaser.Scene {
     this.lead(time, x, y, Boolean(use));
     this.keeper.setPosition(x, y).setFrame(keeperFrame(this.column, moving, time)).setDepth(y);
     this.shadow.setPosition(x, y + 1).setDepth(y - 0.5);
+    this.paintPeers(time);
+    this.paintPostBlocks(time);
+    this.updateSeasonLook(delta);
     this.night.update(time, this.carried(x, y));
     this.sky.update(time);
     this.report(time, x, y);
   }
 
-  /** Tells the chain layer where the keeper is, at most twice a second and only after a move. */
+  private syncMusic(): void {
+    playMusic(useHud.getState().sunFree ? "spring" : "meadow");
+  }
+
+  private updateSeasonLook(delta: number): void {
+    const sunFree = useHud.getState().sunFree;
+    const target = sunFree ? 0 : 1;
+    if (this.springStrength !== target) {
+      const step = Math.min(1, delta / 2400);
+      this.springStrength = sunFree
+        ? Math.max(0, this.springStrength - step)
+        : Math.min(1, this.springStrength + step);
+      this.night.setStrength(this.springStrength);
+    }
+    this.sky.setSpring(sunFree);
+    if (sunFree) playMusic("spring");
+  }
+
+  private paintPeers(time: number): void {
+    const self = getLive()?.owner.toBase58() ?? "";
+    const rows = useWorld
+      .getState()
+      .presence.filter((row) => row.player !== self && row.zone === 0 && row.x > 0 && row.y > 0);
+    this.peers.forEach((sprite, index) => {
+      const peer = rows[index];
+      if (!peer) {
+        sprite.setVisible(false);
+        return;
+      }
+      sprite.setVisible(true);
+      sprite.setPosition(peer.x, peer.y).setDepth(peer.y);
+      const col = [1, 3, 0, 2][peer.facing] ?? 0;
+      sprite.setFrame(keeperFrame(col, false, time));
+    });
+  }
+
+  private paintPostBlocks(time: number): void {
+    this.postGlows.clear();
+    const posts = useVillage.getState().posts.filter((post) => post.hasBlock);
+    const bob = Math.round(Math.sin(time / 350));
+    posts.forEach((post, index) => {
+      const spot = LAMPS[index % LAMPS.length];
+      if (!spot) return;
+      const px = footX(spot[0]) + 3;
+      const py = footY(spot[1]) - 22 + bob;
+      const color = TONE_HEX[post.tone] ?? TONE_HEX[0];
+      this.postGlows.fillStyle(color, 0.35).fillCircle(px, py, 7 + post.grade * 2);
+      this.postGlows.fillStyle(0x141b1b, 1).fillRect(px - 3, py - 3, 6, 6);
+      this.postGlows.fillStyle(color, 1).fillRect(px - 2, py - 2, 4, 4);
+    });
+  }
+
   private report(time: number, x: number, y: number): void {
     if (time - this.lastSent < REPORT_MS) return;
     if (x === this.sentX && y === this.sentY) return;
@@ -118,7 +205,6 @@ export class OverworldScene extends Phaser.Scene {
     gameBridge().move({ x, y, facing: this.facing });
   }
 
-  /** Draws the first-night trail to the current step, and tells the walk where the Keeper is. */
   private lead(time: number, x: number, y: number, near: boolean): void {
     const step = this.mode === "play" ? currentStep() : undefined;
     const goal = step?.stand && step.mark ? { stand: step.stand, mark: step.mark } : null;
@@ -126,7 +212,6 @@ export class OverworldScene extends Phaser.Scene {
     if (this.mode === "play") tell({ kind: "at", x, y });
   }
 
-  /** Each time the opening starts, the Keeper is put back at the west end of the road. */
   private arrive(): void {
     const { arrivals } = useTale.getState();
     if (arrivals === this.arrivals) return;
@@ -138,7 +223,6 @@ export class OverworldScene extends Phaser.Scene {
     this.facing = 1;
   }
 
-  /** During the opening's last line the Keeper walks in along the road. */
   private walkIn(delta: number): boolean {
     const { beat } = useTale.getState();
     if (beat === null || !BEATS[beat]?.walkIn || this.x >= ARRIVE_X) return false;
@@ -150,7 +234,6 @@ export class OverworldScene extends Phaser.Scene {
     return { x, y: y - 8, radius: CARRIED_GLOW, thaw: 0 };
   }
 
-  /** Names one frame per sprite kind on its sheet, so a prop is drawn whole. */
   private cutKinds(): void {
     for (const [name, cut] of Object.entries(KINDS)) {
       const texture = this.textures.get(cut.sheet);
@@ -182,7 +265,6 @@ export class OverworldScene extends Phaser.Scene {
 
   private step(delta: number): boolean {
     if (this.entering) {
-      // The opening was skipped or has ended: the Keeper is on the road, wherever the walk-in got to.
       this.entering = false;
       this.x = Math.max(this.x, ARRIVE_X);
     }
@@ -199,7 +281,6 @@ export class OverworldScene extends Phaser.Scene {
     return this.slide(dx * pace, dy * pace);
   }
 
-  /** Moves one axis at a time, so the keeper slides along a wall instead of sticking to it. */
   private slide(dx: number, dy: number): boolean {
     const startX = this.x;
     const startY = this.y;
@@ -210,22 +291,22 @@ export class OverworldScene extends Phaser.Scene {
     return this.x !== startX || this.y !== startY;
   }
 
-  /** Space or Enter: the next line while someone is talking, else whatever is in reach. */
   private act(event: KeyboardEvent): void {
     if (event.repeat || this.mode === "tour") return;
     if (this.mode === "cinema") return nextBeat();
     if (this.mode === "talk") return nextLine();
     const use = useAt(Math.round(this.x), Math.round(this.y));
     if (use?.act === "door") knock();
-    if (use?.act === "chop") this.chop();
+    if (use?.act === "chop") this.gather(use.node ?? 0, use.x, use.y);
     if (use?.act === "talk") speak("nellName", NELL_FACE, ["nell1", "nell3"]);
   }
 
-  private chop(): void {
-    if (this.birch) {
+  private gather(node: number, nodeX: number, nodeY: number): void {
+    if (node === 0 && this.birch) {
       this.tweens.add({ targets: this.birch, angle: { from: -3, to: 3 }, duration: 60, yoyo: true, repeat: 2, onComplete: () => this.birch?.setAngle(0) });
     }
-    gameBridge().chop({ x: Math.round(this.x), y: Math.round(this.y), nodeX: TREE_X, nodeY: TREE_Y });
+    playSfx(node >= 1 && node <= 3 ? "mine" : "chop");
+    gameBridge().chop({ x: Math.round(this.x), y: Math.round(this.y), nodeX, nodeY, node });
     tell({ kind: "chopped" });
   }
 }

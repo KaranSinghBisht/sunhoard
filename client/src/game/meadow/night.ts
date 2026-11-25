@@ -36,6 +36,7 @@ export class Night {
   private readonly shade: Phaser.GameObjects.RenderTexture;
   private readonly stamp: Phaser.GameObjects.Image;
   private readonly glows: Phaser.GameObjects.Image[];
+  private strength = 1;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -50,6 +51,12 @@ export class Night {
     this.glows = lights.map((light) => this.glow(light));
   }
 
+  /** Scales the night shade (1 = Long Night, 0 = Spring daylight). */
+  setStrength(value: number): void {
+    this.strength = Math.max(0, Math.min(1, value));
+    this.shade.setAlpha(this.strength);
+  }
+
   private glow(light: Light): Phaser.GameObjects.Image {
     const image = this.scene.add.image(light.x, light.y, MASK_KEY).setDepth(GLOW_DEPTH);
     image.setBlendMode(Phaser.BlendModes.ADD).setTint(WARM).setAlpha(GLOW_ALPHA);
@@ -61,13 +68,17 @@ export class Night {
     const camera = this.scene.cameras.main;
     const { width, height } = this.scene.scale;
     this.shade.clear();
+    if (this.strength <= 0.01) {
+      this.glows.forEach((glow) => glow.setAlpha(0.05));
+      return;
+    }
     this.shade.fill(this.colour, 1);
     const all = [...this.lights, carried];
     all.forEach((light, index) => {
       const x = Math.round(light.x - camera.scrollX);
       const y = Math.round(light.y - camera.scrollY);
       const flicker = flickerOf(time, index);
-      if (index < this.glows.length) this.glows[index].setAlpha(GLOW_ALPHA + flicker * 0.02);
+      if (index < this.glows.length) this.glows[index].setAlpha((GLOW_ALPHA + flicker * 0.02) * this.strength);
       const radius = light.radius + flicker;
       if (x < -radius || y < -radius || x > width + radius || y > height + radius) return;
       this.stamp.setScale((radius * 2) / MASK_SIZE).setAlpha(index < this.lights.length ? 1 : CARRIED_STRENGTH);

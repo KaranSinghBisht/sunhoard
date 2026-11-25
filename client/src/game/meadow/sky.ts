@@ -53,18 +53,31 @@ function paintBand(scene: Phaser.Scene, width: number): void {
 }
 
 export class Sky {
+  private readonly strip: Phaser.GameObjects.Image;
   private readonly stars: Phaser.GameObjects.Graphics;
   private readonly aurora: Phaser.GameObjects.Graphics;
+  private readonly snow: Phaser.GameObjects.Particles.ParticleEmitter;
+  private readonly petals: Phaser.GameObjects.Particles.ParticleEmitter | null;
   private readonly width: number;
   private drawnAt = -FRAME_MS;
+  private spring = false;
 
   constructor(scene: Phaser.Scene) {
     this.width = scene.scale.width;
     paintBand(scene, this.width);
-    scene.add.image(0, 0, SKY_KEY).setOrigin(0, 0).setScrollFactor(0).setDepth(DEPTH);
+    this.strip = scene.add.image(0, 0, SKY_KEY).setOrigin(0, 0).setScrollFactor(0).setDepth(DEPTH);
     this.aurora = scene.add.graphics().setScrollFactor(0).setDepth(DEPTH + 1).setBlendMode(Phaser.BlendModes.ADD);
     this.stars = scene.add.graphics().setScrollFactor(0).setDepth(DEPTH + 2);
-    letItSnow(scene);
+    this.snow = letItSnow(scene);
+    this.petals = scene.textures.exists("petal") ? letPetalsFall(scene) : null;
+  }
+
+  setSpring(on: boolean): void {
+    if (this.spring === on) return;
+    this.spring = on;
+    this.strip.setTint(on ? 0x79b8ce : 0xffffff);
+    this.snow.emitting = !on;
+    if (this.petals) this.petals.emitting = on;
   }
 
   update(time: number): void {
@@ -76,6 +89,7 @@ export class Sky {
 
   private drawAurora(time: number): void {
     this.aurora.clear();
+    if (this.spring) return;
     for (const [colour, speed, phase, reach] of CURTAINS) {
       this.aurora.fillStyle(colour, 0.34);
       for (let x = 0; x < this.width; x += 2) {
@@ -88,6 +102,13 @@ export class Sky {
 
   private drawStars(time: number): void {
     this.stars.clear();
+    if (this.spring) {
+      this.stars.fillStyle(0xffe18d, 1);
+      this.stars.fillCircle(DISC_X, DISC_Y, 7);
+      this.stars.fillStyle(0xf2eaf1, 0.9);
+      this.stars.fillCircle(DISC_X, DISC_Y, 4);
+      return;
+    }
     STARS.forEach(([x, y], index) => {
       const lit = Math.sin(time * 0.002 + index * 2.3) > -0.4;
       this.stars.fillStyle(index % 3 === 0 ? 0xffe18d : 0xf2eaf1, lit ? 1 : 0.35);
@@ -101,7 +122,7 @@ export class Sky {
 }
 
 /** Snow over the whole screen: flakes are born anywhere on it, fade in, drift left and fade out. */
-function letItSnow(scene: Phaser.Scene): void {
+function letItSnow(scene: Phaser.Scene): Phaser.GameObjects.Particles.ParticleEmitter {
   const { width, height } = scene.scale;
   const flakes = scene.add.particles(0, 0, "snow", {
     frame: [0, 1, 2, 3, 4, 5, 6],
@@ -113,5 +134,21 @@ function letItSnow(scene: Phaser.Scene): void {
     frequency: 110,
     quantity: 1,
   });
-  flakes.setScrollFactor(0).setDepth(SNOW_DEPTH);
+  return flakes.setScrollFactor(0).setDepth(SNOW_DEPTH);
+}
+
+function letPetalsFall(scene: Phaser.Scene): Phaser.GameObjects.Particles.ParticleEmitter {
+  const { width, height } = scene.scale;
+  const petals = scene.add.particles(0, 0, "petal", {
+    frame: [0, 1, 2, 3],
+    emitZone: { type: "random", source: new Phaser.Geom.Rectangle(0, -24, width + 60, height + 24) } as Phaser.Types.GameObjects.Particles.EmitZoneData,
+    lifespan: { min: 6000, max: 10000 },
+    speedY: { min: 10, max: 22 },
+    speedX: { min: -12, max: 6 },
+    alpha: { onUpdate: (_particle: unknown, _key: string, t: number) => 0.85 * Math.min(1, t * 5, (1 - t) * 5) },
+    frequency: 160,
+    quantity: 1,
+    emitting: false,
+  });
+  return petals.setScrollFactor(0).setDepth(SNOW_DEPTH);
 }

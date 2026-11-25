@@ -14,6 +14,14 @@ export const NELL = "/assets/vendor/ninja-adventure/nell.png";
 export const NELL_FACE = "/assets/vendor/ninja-adventure/nell-face.png";
 export const SHADOW = "/assets/vendor/ninja-adventure/shadow.png";
 export const DUNGEON = "/assets/vendor/kenney-tiny-dungeon/tilemap.png";
+export const DRAGON_HEAD = "/assets/vendor/ninja-adventure/dragon/head.png";
+export const DRAGON_WING = "/assets/vendor/ninja-adventure/dragon/wing.png";
+export const DRAGON_BODY1 = "/assets/vendor/ninja-adventure/dragon/body1.png";
+export const DRAGON_BODY2 = "/assets/vendor/ninja-adventure/dragon/body2.png";
+export const DRAGON_TAIL = "/assets/vendor/ninja-adventure/dragon/tail.png";
+export const SPIRIT_IDLE = "/assets/vendor/ninja-adventure/spirit/idle.png";
+export const SPARK = "/assets/vendor/ninja-adventure/spark.png";
+export const PETAL = "/assets/vendor/ninja-adventure/petal.png";
 
 const WALK = [1, 2, 3, 2];
 

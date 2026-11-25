@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { CellarScene } from "./CellarScene";
+import { LairScene } from "./LairScene";
 import { OverworldScene } from "./OverworldScene";
 
 export function createGame(parent: HTMLElement, zoom: number): Phaser.Game {
@@ -12,8 +13,7 @@ export function createGame(parent: HTMLElement, zoom: number): Phaser.Game {
     pixelArt: true,
     roundPixels: true,
     banner: false,
-    audio: { noAudio: true },
-    scene: [OverworldScene, CellarScene],
+    scene: [OverworldScene, CellarScene, LairScene],
     scale: { mode: Phaser.Scale.NONE },
   });
 }

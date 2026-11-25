@@ -23,14 +23,14 @@ function finished(fight: Fight): boolean {
 
 export function startPractice(): void {
   stopPractice();
-  let fight: Fight = openRoom(seed());
+  let fight: Fight = openRoom(seed(), 1, 100);
   let rest = 0;
   intent = STILL;
   setChainFight(cloneFight(fight), false);
   timer = setInterval(() => {
     rest = finished(fight) ? rest + 1 : 0;
     if (rest > REST_STEPS) {
-      fight = openRoom(seed());
+      fight = openRoom(seed(), 1, 100);
       rest = 0;
     } else {
       stepFight(fight, intent);
