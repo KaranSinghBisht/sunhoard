@@ -61,6 +61,36 @@ pub fn send(world: &mut World, target: TransactionTarget, ix: Instruction, label
     );
 }
 
+/// Sends a transaction that is allowed to fail, and says whether it landed.
+pub fn try_send(world: &mut World, target: TransactionTarget, ix: Instruction) -> bool {
+    let tx = test_utils::sign_tx(
+        &[&world.payer],
+        &[compute_budget(1_400_000), ix],
+        world.svm.latest_blockhash_for(target),
+    );
+    let landed = world.svm.send_transaction_to(target, tx).is_ok();
+    world.svm.expire_blockhash_for(target);
+    landed
+}
+
+/// Overwrites a rollup account's data past its discriminator. The harness
+/// uses it to set up a state that would take a long honest run to reach.
+pub fn write_rollup(world: &mut World, account: &Pubkey, edit: impl FnOnce(&mut [u8])) {
+    let address = as_address(*account);
+    let mut shared = world
+        .svm
+        .get_shared_account_for(TransactionTarget::Ephemeral, &address)
+        .unwrap_or_else(|| panic!("missing {account} on the rollup"));
+    let mut bytes = shared.data().to_vec();
+    edit(&mut bytes[8..]);
+    shared.set_data_from_slice(&bytes);
+    world
+        .svm
+        .ephemeral_mut()
+        .set_account(address, shared.into())
+        .unwrap_or_else(|err| panic!("write {account}: {err:?}"));
+}
+
 fn compute_budget(units: u32) -> Instruction {
     let mut data = vec![2u8];
     data.extend_from_slice(&units.to_le_bytes());

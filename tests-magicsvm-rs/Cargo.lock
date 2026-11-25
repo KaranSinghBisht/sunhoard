@@ -6287,6 +6287,7 @@ name = "sunhoard-magicsvm-tests"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
+ "bytemuck",
  "ephemeral-rollups-sdk 0.16.2",
  "magicblock-account",
  "magicsvm",
