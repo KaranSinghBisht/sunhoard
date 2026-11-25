@@ -1,14 +1,16 @@
 # Progress
-Milestone: M1 rules, called by the program and the MagicSVM run · Updated: Sat Nov 21, 3:57 AM IST
+Milestone: L1 rules live in `logic/`, mirrored in TS · Updated: Sat Nov 21, 9:45 PM IST
 
 ## Done
-- Pure rules in `programs/sunhoard/src/logic/`: seal, gather, VRF-byte rolls, one arena step, payout split.
-- Rule tests still pass. The crate's full `cargo test --lib` is 36 passed, including the aurora clock, the thaw fees, the first room, and the Season damage-table offset.
+- Pure rules in `programs/sunhoard/src/logic/`: seal, gather, VRF-byte rolls, the dungeon and lair sims, the market and anvil math, payout split.
+- Rule tests still pass. The crate's full `cargo test --lib` is 52 passed, including the aurora clock, the thaw fees, the first room, the Snuffer, the chest rolls, the recipes, the rarity and trait rolls, Pell's prices and the Season damage-table offset.
+- L1 numbers came straight from docs/ECONOMY.md: recipes, Charter and shop prices, gear rarity and trait rolls, the six-room run, the Snuffer (900 HP, Ember Volley 10, Wick Lines 16, Snuff 18 + frost), the chest tiers with the daily cap, and the first-clear boss block.
+- The TS mirror `client/src/shared/fight.ts` matches `logic/arena.rs` and `logic/fight.rs` step for step, including shots, the Snuffer's telegraphs and the frost slow. Vitest: 27 passed.
 
 ## Doing
-- D: `economy.json` and codegen are still open. The program is calling the signatures below.
-- A: M1 instructions run in MagicSVM. See `progress/A.md`.
-- B: not started.
+- D: `economy.json` and codegen are still open. The program is calling the signatures below plus the L1–L3 ones in `progress/A.md`.
+- A: L4 stretch work next. See `progress/A.md`.
+- B: L1 client done; L2/L3 panels next. See `progress/B.md`.
 - C: art packs are in `assets-src/`. The pipeline is not started.
 
 ## Blocked, or needs the student
@@ -27,16 +29,17 @@ Milestone: M1 rules, called by the program and the MagicSVM run · Updated: Sat 
 - A wallet at exactly 2% of damage qualifies for the equal share. The T1-clear and age checks are arguments. Live age is 86400 seconds.
 - A Crater shell reveals two blocks. A Large shell reveals a second block on a 15% roll. Small and Medium reveal one block or frost dust.
 - The second block is `sha256(key ‖ 0x01)`, so it does not reuse the first block's bytes.
-- This arena step moves the rat, the slime, and the bat. Boss attack patterns are not in it yet.
+- This arena step moves the rat, the slime, the bat and the Snuffer. The Snuffer telegraphs 6 steps before each attack: Ember Volley (three shots of 10), Wick Lines (two diagonal shots of 16) and Snuff (a teleport next to the keeper, 18 damage and 2 s of frost).
 - A diagonal step moves `181/256` of the cardinal speed on each axis, so a diagonal is not faster.
 - One gather pays 1 unit. A birch that yields 2 wood is two gathers. Energy: birch, rock, coal, and berry cost 1; ore costs 3.
 - If the clock moves backwards, energy does not refill and the call is not an error.
 - Item kind numbers (`KIND_WOOD = 1` and the rest in `logic/ids.rs`) are provisional until `economy.json` owns them.
 - The aurora is up for the first 600 seconds of every 1,800. A negative timestamp is not up.
 - Overworld movement allows 80 units a second, and a zone change is always allowed.
-- Thaw fees are the economy table in Glint hundredths: 500, 1,200, 3,000, 0. No economy number was changed.
+- Thaw fees are the economy table in Glint hundredths: 500, 1,200, 3,000, 0, and 0 for the boss block. No economy number was changed.
 - The first dungeon room is 256 by 256. The player starts at (32, 128). Three foes are placed from the seed. The default weapon is stone, common, with keen 0 and brutal 0.
 - A clear pays 100 Glint hundredths and 2 Wickwax. `KIND_WICKWAX` is 6, provisional until `economy.json` owns the kind ids. No economy number was changed.
+- L1 rules: six rooms hold 5/6/7/6/7 monsters from three layouts; the boss block is shell kind 4, thawed free, grade odds 70/25/5; crafted gear rolls rarity from stone/iron or gilded tables and traits from the tool or weapon pool with the flaw chance per rarity; Efficient and Bountiful apply to gathering, Keen and Brutal to the dungeon weapon; chests cap at 6 a day per tier and then drop a tier; the first clear of the day also drops the boss block.
 
 ## Contract changes (IDL, economy.json, logic/ signatures, strings.json keys)
 Track A should call these and not reimplement them. `constants_stub.rs` re-exports `logic::ids` and `logic::numbers` until codegen writes `constants.rs`.
@@ -44,8 +47,8 @@ Track A should call these and not reimplement them. `constants_stub.rs` re-expor
 - `logic::seal_key(salt: &[u8; 32], item_id: u64) -> [u8; 32]`
 - `logic::commitment(key: &[u8; 32]) -> [u8; 32]`
 - `logic::reveal_shell(key: &[u8; 32], shell: u8) -> Result<RevealedShell, LogicError>`
-- `logic::gather_base(node: u8, energy_used_today: u32) -> Result<GatherBase, LogicError>`
-- `logic::gather_callback(node: u8, energy_used_today: u32, vrf: &[u8; 32], aurora_up: bool) -> Result<GatherExtra, LogicError>`
+- `logic::gather_base(node: u8, energy_used_today: u32, tool: ToolBonus) -> Result<GatherBase, LogicError>`
+- `logic::gather_callback(node: u8, energy_used_today: u32, tool: ToolBonus, vrf: &[u8; 32], aurora_up: bool) -> Result<GatherExtra, LogicError>`
 - `logic::in_gather_range(px, py, nx, ny: u16) -> bool`
 - `logic::cooldown_ready(last_unix: i64, now_unix: i64) -> bool`
 - `logic::refill_energy(stored: u32, last_unix: i64, now_unix: i64) -> Result<(u32, i64), LogicError>`
@@ -58,19 +61,22 @@ Track A should call these and not reimplement them. `constants_stub.rs` re-expor
 - `logic::combat::attack_damage(weapon: &Weapon, seed: &[u8; 32], step: u64, hit: u16) -> Result<i32, LogicError>`
 - `logic::step_arena(sim: &mut ArenaSim, intent: Intent, seed: &[u8; 32], weapon: &Weapon) -> Result<(), LogicError>`
 - `logic::stone_weapon() -> Weapon`
-- `logic::open_room(seed: &[u8; 32]) -> Result<Fight, LogicError>`
+- `logic::open_room(seed: &[u8; 32], room: u8, start_hp: i32) -> Result<Fight, LogicError>`
 - `logic::step_fight(fight: &mut Fight, intent: Intent, seed: &[u8; 32], weapon: &Weapon) -> Result<(), LogicError>`
 - `logic::room_clear(fight: &Fight) -> bool`
 - `logic::split_pot(pot: u64, rows: &[DamageRow], min_age_secs: u64) -> Result<Split, LogicError>`
+- L1: `logic::chest::{roll_chest, first_clear_block, chest_gear_kind, shell_for}`, `logic::craft::{recipe_by_id, roll_rarity, roll_traits, is_gear_recipe, Recipe, TraitRoll}`, `logic::merchant::{charter_material, shop_price, charter_gear, charter_block, charter_shell, sell_material, sell_gear, sell_block, sell_shell}`.
 
-Shell ids: Small 0, Medium 1, Large 2, Crater 3. Node ids: birch 0, rock 1, coal 2, ore 3, berry 4. Monster ids: rat 0, slime 1, bat 2. Weapon material: stone 0, iron 1, gilded 2. Rarity: Common 0 through Legendary 4.
+Shell ids: Small 0, Medium 1, Large 2, Crater 3, Boss 4. Node ids: birch 0, rock 1, coal 2, ore 3, berry 4. Monster ids: rat 0, slime 1, bat 2, Snuffer 3. Weapon material: stone 0, iron 1, gilded 2. Rarity: Common 0 through Legendary 4.
 
 ## ❓ answers (from HANDOFF.md §9)
 - None yet. These need a deployed program on the devnet TEE.
 
 ## Test evidence (command and result)
-`cargo +1.89.0 test --lib` in `game/`, rustc 1.89.0 (29483883e 2025-08-04), after the Anchor crates were added.
+`cargo +1.89.0 test --lib` in `game/`, rustc 1.89.0 (29483883e 2025-08-04), Sat Nov 21, 9:40 PM IST.
 
 ```
-test result: ok. 36 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+test result: ok. 52 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ```
+
+Client: `corepack yarn typecheck` exit 0 and `corepack yarn test` → 27 passed, Sat Nov 21, 9:45 PM IST.
