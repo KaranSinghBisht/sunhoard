@@ -3,9 +3,12 @@ use crate::errors::LogicError;
 use super::combat::{attack_damage, Weapon};
 use super::math::isqrt;
 use super::numbers::{
-    ATTACK_STEPS, CONTACT_UNITS, DASH_COOLDOWN_STEPS, DASH_SPEED, DASH_STEPS, DIAGONAL_DEN,
-    DIAGONAL_NUM, INVULN_STEPS, MAX_MONSTERS, MONSTER_AGGRO, MONSTER_DMG, MONSTER_HP,
-    MONSTER_REAIM, MONSTER_SPEED, PLAYER_HP, PLAYER_SPEED, REACH_UNITS,
+    ATTACK_STEPS, BOSS_ATTACK_GAP_STEPS, BOSS_EMBER_DMG, BOSS_EMBER_LIFE, BOSS_EMBER_SPEED,
+    BOSS_FROST_STEPS, BOSS_SNUFF_DMG, BOSS_SNUFF_RANGE, BOSS_TELEGRAPH_STEPS, BOSS_WICK_DMG,
+    BOSS_WICK_LIFE, CONTACT_UNITS, DASH_COOLDOWN_STEPS, DASH_SPEED, DASH_STEPS,
+    DIAGONAL_DEN, DIAGONAL_NUM, INVULN_STEPS, MAX_MONSTERS, MONSTER_AGGRO, MONSTER_DMG,
+    MONSTER_HP, MONSTER_REAIM, MONSTER_SPEED, PLAYER_HP, PLAYER_SPEED, REACH_UNITS,
+    SHOT_HIT_UNITS, SHOT_SLOTS, SLOWED_SPEED,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -17,25 +20,59 @@ pub struct Intent {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Body {
-    pub(crate) x: i32,
-    pub(crate) y: i32,
-    pub(crate) hp: i32,
-    pub(crate) facing: u8,
-    pub(crate) attack_cd: u8,
-    pub(crate) invuln: u8,
-    pub(crate) dash_cd: u8,
-    pub(crate) dash_left: u8,
+pub struct Body {
+    pub x: i32,
+    pub y: i32,
+    pub hp: i32,
+    pub facing: u8,
+    pub attack_cd: u8,
+    pub invuln: u8,
+    pub dash_cd: u8,
+    pub dash_left: u8,
+    /// Steps of Snuff frost left: −40% speed.
+    pub slow: u8,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Monster {
-    pub(crate) kind: u8,
-    pub(crate) body: Body,
-    pub(crate) aim_x: i32,
-    pub(crate) aim_y: i32,
-    pub(crate) aim_age: u8,
+pub struct Monster {
+    pub kind: u8,
+    pub body: Body,
+    pub aim_x: i32,
+    pub aim_y: i32,
+    pub aim_age: u8,
 }
+
+pub const SHOT_EMBER: u8 = 1;
+pub const SHOT_WICK: u8 = 2;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Shot {
+    pub x: i32,
+    pub y: i32,
+    pub vx: i16,
+    pub vy: i16,
+    pub life: u8,
+    pub kind: u8,
+}
+
+impl Shot {
+    pub const fn empty() -> Self {
+        Self {
+            x: 0,
+            y: 0,
+            vx: 0,
+            vy: 0,
+            life: 0,
+            kind: 0,
+        }
+    }
+}
+
+/// The Snuffer's attack pattern: 0 none, 1 ember volley, 2 wick lines, 3 snuff.
+pub const BOSS_IDLE: u8 = 0;
+pub const BOSS_EMBER: u8 = 1;
+pub const BOSS_WICK: u8 = 2;
+pub const BOSS_SNUFF: u8 = 3;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ArenaSim {
@@ -45,6 +82,11 @@ pub struct ArenaSim {
     pub player_hp: i32,
     pub(crate) monster_count: u8,
     pub(crate) monsters: [Monster; MAX_MONSTERS],
+    pub shots: [Shot; SHOT_SLOTS],
+    pub shot_count: u8,
+    pub boss_attack: u8,
+    pub boss_telegraph: u8,
+    pub boss_cd: u8,
     pub(crate) room_w: i32,
     pub(crate) room_h: i32,
     pub(crate) player: Body,
@@ -65,6 +107,8 @@ pub fn step_arena(
     begin_dash(&mut sim.player, &intent);
     let speed = if sim.player.dash_left > 0 {
         DASH_SPEED
+    } else if sim.player.slow > 0 {
+        SLOWED_SPEED
     } else {
         PLAYER_SPEED
     };
@@ -76,8 +120,10 @@ pub fn step_arena(
         sim.room_w,
         sim.room_h,
     )?;
+    step_boss(sim, seed)?;
     steer_monsters(sim)?;
     swing(sim, &intent, seed, weapon)?;
+    step_shots(sim)?;
     contact(sim)?;
     publish(sim);
     advance(sim)
@@ -96,6 +142,12 @@ impl ArenaSim {
             player_hp: PLAYER_HP,
             monster_count: 0,
             monsters: [Monster::empty(); MAX_MONSTERS],
+            shots: [Shot::empty(); SHOT_SLOTS],
+            shot_count: 0,
+            boss_attack: BOSS_IDLE,
+            boss_telegraph: 0,
+            // The first attack telegraphs on the first step; later ones wait.
+            boss_cd: 0,
             room_w,
             room_h,
             player,
@@ -103,7 +155,11 @@ impl ArenaSim {
     }
 
     pub fn add_monster(&mut self, kind: u8, x: i32, y: i32) -> Result<(), LogicError> {
-        let hp = monster_stat(MONSTER_HP, kind)?;
+        let hp = if kind == super::ids::MONSTER_SNUFFER {
+            super::numbers::SNUFFER_HP
+        } else {
+            monster_stat(MONSTER_HP, kind)?
+        };
         let index = usize::from(self.monster_count);
         if index >= MAX_MONSTERS {
             return Err(LogicError::Full);
@@ -111,7 +167,11 @@ impl ArenaSim {
         if x < 0 || y < 0 || x > self.room_w || y > self.room_h {
             return Err(LogicError::BadRoom);
         }
-        let reaim = monster_reaim(kind)?;
+        let reaim = if kind == super::ids::MONSTER_SNUFFER {
+            1
+        } else {
+            monster_reaim(kind)?
+        };
         self.monsters[index] = Monster {
             kind,
             body: Body::at(x, y, hp),
@@ -131,6 +191,13 @@ impl ArenaSim {
         self.monsters
             .get(index)
             .map(|monster| (monster.body.x, monster.body.y))
+    }
+
+    fn boss(&mut self) -> Option<&mut Monster> {
+        self.monsters
+            .iter_mut()
+            .take(usize::from(self.monster_count))
+            .find(|monster| monster.kind == super::ids::MONSTER_SNUFFER && monster.body.hp > 0)
     }
 }
 
@@ -153,6 +220,7 @@ fn tick_body(body: &mut Body) {
     body.invuln = body.invuln.saturating_sub(1);
     body.dash_cd = body.dash_cd.saturating_sub(1);
     body.dash_left = body.dash_left.saturating_sub(1);
+    body.slow = body.slow.saturating_sub(1);
 }
 
 fn begin_dash(body: &mut Body, intent: &Intent) {
@@ -169,7 +237,11 @@ fn begin_dash(body: &mut Body, intent: &Intent) {
 fn steer_monsters(sim: &mut ArenaSim) -> Result<(), LogicError> {
     let (px, py) = (sim.player.x, sim.player.y);
     for index in 0..usize::from(sim.monster_count) {
-        steer(&mut sim.monsters[index], px, py, sim.room_w, sim.room_h)?;
+        let monster = &mut sim.monsters[index];
+        if monster.kind == super::ids::MONSTER_SNUFFER {
+            continue;
+        }
+        steer(monster, px, py, sim.room_w, sim.room_h)?;
     }
     Ok(())
 }
@@ -204,6 +276,171 @@ fn steer(
         room_w,
         room_h,
     )
+}
+
+/// The Snuffer: telegraphs, then fires one of three attacks, then waits.
+fn step_boss(sim: &mut ArenaSim, seed: &[u8; 32]) -> Result<(), LogicError> {
+    if sim.boss().is_none() {
+        return Ok(());
+    }
+    if sim.boss_telegraph > 0 {
+        sim.boss_telegraph -= 1;
+        if sim.boss_telegraph == 0 {
+            fire_boss(sim)?;
+        }
+        return Ok(());
+    }
+    if sim.boss_cd > 0 {
+        sim.boss_cd -= 1;
+    }
+    // Lumber toward the Keeper while waiting.
+    let (px, py) = (sim.player.x, sim.player.y);
+    let (room_w, room_h) = (sim.room_w, sim.room_h);
+    let (bx, by) = {
+        let boss = sim.boss().ok_or(LogicError::BadIntent)?;
+        (boss.body.x, boss.body.y)
+    };
+    if dist2(bx, by, px, py) > 40 * 40 {
+        let boss = sim.boss().ok_or(LogicError::BadIntent)?;
+        move_toward(
+            &mut boss.body,
+            px,
+            py,
+            super::numbers::SNUFFER_SPEED,
+            room_w,
+            room_h,
+        )?;
+    }
+    if sim.boss_cd == 0 {
+        let pattern = word0(&super::roll::expand(seed, sim.step_index)) % 3;
+        sim.boss_attack = (pattern + 1) as u8;
+        sim.boss_telegraph = BOSS_TELEGRAPH_STEPS;
+        sim.boss_cd = BOSS_ATTACK_GAP_STEPS;
+    }
+    Ok(())
+}
+
+fn fire_boss(sim: &mut ArenaSim) -> Result<(), LogicError> {
+    let (px, py) = (sim.player.x, sim.player.y);
+    let (bx, by) = {
+        let boss = sim.boss().ok_or(LogicError::BadIntent)?;
+        (boss.body.x, boss.body.y)
+    };
+    match sim.boss_attack {
+        BOSS_EMBER => {
+            let (dx, dy) = aim(px, py, bx, by, BOSS_EMBER_SPEED);
+            add_shot(sim, bx, by, dx, dy, BOSS_EMBER_LIFE, SHOT_EMBER)?;
+            let (dx2, dy2) = aim(
+                px.saturating_sub(24),
+                py.saturating_add(24),
+                bx,
+                by,
+                BOSS_EMBER_SPEED,
+            );
+            add_shot(sim, bx, by, dx2, dy2, BOSS_EMBER_LIFE, SHOT_EMBER)?;
+            let (dx3, dy3) = aim(
+                px.saturating_add(24),
+                py.saturating_sub(24),
+                bx,
+                by,
+                BOSS_EMBER_SPEED,
+            );
+            add_shot(sim, bx, by, dx3, dy3, BOSS_EMBER_LIFE, SHOT_EMBER)
+        }
+        BOSS_WICK => {
+            add_shot(sim, 0, 0, 3, 3, BOSS_WICK_LIFE, SHOT_WICK)?;
+            add_shot(sim, sim.room_w, 0, -3, 3, BOSS_WICK_LIFE, SHOT_WICK)
+        }
+        BOSS_SNUFF => {
+            let x = (px - 20).clamp(0, sim.room_w);
+            let y = (py - 20).clamp(0, sim.room_h);
+            let boss = sim.boss().ok_or(LogicError::BadIntent)?;
+            boss.body.x = x;
+            boss.body.y = y;
+            if dist2(x, y, px, py) <= i64::from(BOSS_SNUFF_RANGE) * i64::from(BOSS_SNUFF_RANGE) {
+                sim.player.hp = sim.player.hp.saturating_sub(BOSS_SNUFF_DMG);
+                sim.player.slow = BOSS_FROST_STEPS;
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
+}
+
+/// A velocity toward the target at the given speed, integers only.
+fn aim(tx: i32, ty: i32, fx: i32, fy: i32, speed: i32) -> (i16, i16) {
+    let dx = i64::from(tx) - i64::from(fx);
+    let dy = i64::from(ty) - i64::from(fy);
+    let dist = isqrt(dx * dx + dy * dy);
+    if dist == 0 {
+        return (0, 0);
+    }
+    let vx = i16::try_from((dx * i64::from(speed)) / dist).unwrap_or(0);
+    let vy = i16::try_from((dy * i64::from(speed)) / dist).unwrap_or(0);
+    (vx, vy)
+}
+
+fn add_shot(
+    sim: &mut ArenaSim,
+    x: i32,
+    y: i32,
+    vx: i16,
+    vy: i16,
+    life: u8,
+    kind: u8,
+) -> Result<(), LogicError> {
+    let index = usize::from(sim.shot_count);
+    if index >= SHOT_SLOTS {
+        return Err(LogicError::Full);
+    }
+    sim.shots[index] = Shot {
+        x,
+        y,
+        vx,
+        vy,
+        life,
+        kind,
+    };
+    sim.shot_count += 1;
+    Ok(())
+}
+
+fn step_shots(sim: &mut ArenaSim) -> Result<(), LogicError> {
+    let reach = i64::from(SHOT_HIT_UNITS) * i64::from(SHOT_HIT_UNITS);
+    let mut live = 0usize;
+    for index in 0..usize::from(sim.shot_count) {
+        let shot = sim.shots[index];
+        if shot.life == 0 {
+            continue;
+        }
+        let mut next = shot;
+        next.x += i32::from(next.vx);
+        next.y += i32::from(next.vy);
+        next.life = next.life.saturating_sub(1);
+        let outside = next.x < 0
+            || next.y < 0
+            || next.x > sim.room_w
+            || next.y > sim.room_h
+            || next.life == 0;
+        if outside {
+            continue;
+        }
+        if dist2(sim.player.x, sim.player.y, next.x, next.y) <= reach {
+            let dmg = match next.kind {
+                SHOT_EMBER => BOSS_EMBER_DMG,
+                _ => BOSS_WICK_DMG,
+            };
+            sim.player.hp = sim.player.hp.saturating_sub(dmg);
+            continue;
+        }
+        sim.shots[live] = next;
+        live += 1;
+    }
+    for slot in sim.shots.iter_mut().skip(live) {
+        *slot = Shot::empty();
+    }
+    sim.shot_count = live as u8;
+    Ok(())
 }
 
 fn swing(
@@ -245,7 +482,7 @@ fn contact(sim: &mut ArenaSim) -> Result<(), LogicError> {
     let reach = i64::from(CONTACT_UNITS) * i64::from(CONTACT_UNITS);
     for index in 0..usize::from(sim.monster_count) {
         let monster = &sim.monsters[index];
-        if monster.body.hp <= 0 {
+        if monster.body.hp <= 0 || monster.kind == super::ids::MONSTER_SNUFFER {
             continue;
         }
         if dist2(sim.player.x, sim.player.y, monster.body.x, monster.body.y) > reach {
@@ -387,6 +624,10 @@ fn advance(sim: &mut ArenaSim) -> Result<(), LogicError> {
     Ok(())
 }
 
+fn word0(bytes: &[u8; 32]) -> u32 {
+    u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
+}
+
 impl Body {
     pub(crate) const fn at(x: i32, y: i32, hp: i32) -> Self {
         Self {
@@ -398,6 +639,7 @@ impl Body {
             invuln: 0,
             dash_cd: 0,
             dash_left: 0,
+            slow: 0,
         }
     }
 }
@@ -416,10 +658,12 @@ impl Monster {
 
 #[cfg(test)]
 mod tests {
-    use super::{step_arena, ArenaSim, Intent};
+    use super::{step_arena, ArenaSim, Intent, Shot, BOSS_EMBER};
     use crate::errors::LogicError;
     use crate::logic::combat::{attack_damage, Weapon};
-    use crate::logic::ids::{MAT_IRON, MONSTER_RAT, MONSTER_SLIME, RARITY_COMMON};
+    use crate::logic::ids::{
+        MAT_IRON, MONSTER_RAT, MONSTER_SLIME, MONSTER_SNUFFER, RARITY_COMMON,
+    };
 
     fn still() -> Intent {
         Intent {
@@ -481,10 +725,20 @@ mod tests {
     }
 
     #[test]
-    fn a_dash_covers_twenty_four_units() {
+    fn a_dash_covers_twenty_four_units_and_slow_cuts_walking() {
         let mut dasher = ArenaSim::new(256, 256).unwrap();
         push(&mut dasher, 1, 0, true);
         assert_eq!(dasher.player_x, 24);
+
+        let mut frosty = ArenaSim::new(256, 256).unwrap();
+        frosty.player.slow = 2;
+        push(&mut frosty, 1, 0, false);
+        assert_eq!(frosty.player_x, 5);
+        // The second step ticks the frost away, so it walks at full speed.
+        push(&mut frosty, 1, 0, false);
+        assert_eq!(frosty.player_x, 13);
+        push(&mut frosty, 1, 0, false);
+        assert_eq!(frosty.player_x, 21);
     }
 
     #[test]
@@ -527,6 +781,44 @@ mod tests {
         assert_eq!(sim.player_hp, 95);
         step_arena(&mut sim, still(), &seed, &weapon()).unwrap();
         assert_eq!(sim.player_hp, 95);
+    }
+
+    #[test]
+    fn a_shot_moves_and_hits() {
+        let mut sim = ArenaSim::new(256, 256).unwrap();
+        sim.shots[0] = Shot {
+            x: 40,
+            y: 0,
+            vx: -2,
+            vy: 0,
+            life: 60,
+            kind: BOSS_EMBER,
+        };
+        sim.shot_count = 1;
+        let seed = [0u8; 32];
+        step_arena(&mut sim, still(), &seed, &weapon()).unwrap();
+        assert_eq!(sim.shots[0].x, 38);
+        assert_eq!(sim.player_hp, 100);
+        sim.player.x = 38;
+        step_arena(&mut sim, still(), &seed, &weapon()).unwrap();
+        assert_eq!(sim.player_hp, 90);
+        assert_eq!(sim.shots[0].life, 0);
+    }
+
+    #[test]
+    fn the_snuffer_telegraphs_then_fires() {
+        let mut sim = ArenaSim::new(256, 256).unwrap();
+        sim.add_monster(MONSTER_SNUFFER, 128, 128).unwrap();
+        let seed = [3u8; 32];
+        for _ in 0..7 {
+            step_arena(&mut sim, still(), &seed, &weapon()).unwrap();
+        }
+        // Six steps of telegraph, then the attack lands on the seventh step.
+        assert_eq!(sim.boss_telegraph, 0);
+        assert!(
+            sim.shot_count > 0 || sim.player_hp < 100,
+            "an attack went off"
+        );
     }
 
     #[test]

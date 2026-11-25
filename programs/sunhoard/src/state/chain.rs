@@ -187,7 +187,34 @@ pub struct Player {
     pub gather_used: u32,
     pub gather_node: u8,
     pub gather_flags: u8,
-    pub _pad_gather: [u8; 2],
+    /// Meals eaten today, capped at `MEALS_PER_DAY`.
+    pub meals: u8,
+    /// Inventory slot of the equipped gear, or 255 for none.
+    pub equipped_slot: u8,
+    /// The unix day the meal counter belongs to.
+    pub meals_day: i32,
+    /// The unix day the chest counters belong to.
+    pub chests_day: i32,
+    /// When the pending craft started; a stale request may be replaced.
+    pub craft_at: i64,
+    pub craft_nonce: u64,
+    pub craft_recipe: u8,
+    pub craft_flags: u8,
+    pub _pad_craft: [u8; 6],
+    /// When the anvil last changed heat; 30 idle minutes cool it.
+    pub heat_at: i64,
+    /// The pending strike: the slot it is forging, when it started.
+    pub strike_at: i64,
+    pub strike_nonce: u64,
+    /// The value of the fodder and Glints already consumed.
+    pub strike_inputs: u64,
+    pub strike_slot: u8,
+    pub strike_flags: u8,
+    pub _pad_end: [u8; 6],
+    /// The Glints the player fed the strike, kept for the win/lose split.
+    pub strike_glints: u64,
+    /// When the wallet signed up. The payout's equal share checks its age.
+    pub born_at: i64,
 }
 
 impl Player {
@@ -216,4 +243,44 @@ pub struct View {
 
 impl View {
     pub const LEN: usize = core::mem::size_of::<View>();
+}
+
+#[cfg(test)]
+mod tests {
+    use anchor_lang::AnchorDeserialize;
+
+    use super::{Player, PriceBoard, Purse, Vault, View, World};
+
+    /// The player is stored by borsh but read by offset in tests and tools,
+    /// so the two layouts must agree byte for byte.
+    #[test]
+    fn the_player_has_no_hidden_padding() {
+        let mut bytes = [0u8; Player::LEN];
+        let born = core::mem::offset_of!(Player, born_at);
+        bytes[born..born + 8].copy_from_slice(&77i64.to_le_bytes());
+        let day = core::mem::offset_of!(Player, chests_day);
+        bytes[day..day + 4].copy_from_slice(&19_000i32.to_le_bytes());
+        let heat = core::mem::offset_of!(Player, heat_at);
+        bytes[heat..heat + 8].copy_from_slice(&5i64.to_le_bytes());
+        let mut rest = &bytes[..];
+        let player = Player::deserialize(&mut rest).expect("a zeroed player");
+        assert!(rest.is_empty(), "borsh read {} bytes short", rest.len());
+        assert_eq!(player.born_at, 77);
+        assert_eq!(player.chests_day, 19_000);
+        assert_eq!(player.heat_at, 5);
+    }
+
+    #[test]
+    fn the_small_accounts_have_no_hidden_padding() {
+        fn fits<T: AnchorDeserialize>(len: usize) -> bool {
+            let bytes = vec![0u8; len];
+            let mut rest = &bytes[..];
+            T::deserialize(&mut rest).is_ok() && rest.is_empty()
+        }
+        assert!(fits::<Purse>(Purse::LEN));
+        assert!(fits::<World>(World::LEN));
+        assert!(fits::<PriceBoard>(PriceBoard::LEN));
+        assert!(fits::<Vault>(Vault::LEN));
+        assert!(fits::<View>(View::LEN));
+    }
 }

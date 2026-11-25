@@ -11,6 +11,7 @@ use ephemeral_rollups_sdk::consts::{EPHEMERAL_VAULT_ID, MAGIC_PROGRAM_ID, PERMIS
 use crate::errors::GameError;
 use crate::logic::ids::{GRADE_DIM, PROF_WOODCUTTER, TONE_DAWN};
 use crate::logic::item_id;
+use crate::logic::numbers::{MEADOW_SPAWN_X, MEADOW_SPAWN_Y};
 use crate::state::{
     Inventory, Player, Purse, Season, View, Village, BOUND, INVENTORY_SEED, PLAYER_SEED, PRISTINE,
     PURSE_SEED, SEASON_SEED, VIEW_SEED, VILLAGE_SEED,
@@ -23,6 +24,7 @@ pub fn handle(mut ctx: Context<Join>) -> Result<()> {
         assign(season, &mut ctx.accounts.player)?
     };
     give(&mut ctx, number, now)?;
+    spawn(&mut ctx, now);
     let owner = ctx.accounts.owner.key();
     open(
         &ctx.accounts.purse.to_account_info(),
@@ -75,6 +77,16 @@ fn give(ctx: &mut Context<Join>, player_number: u32, now: i64) -> Result<()> {
     village.villagers[0].profession = PROF_WOODCUTTER;
     village.villagers[0].flags = BOUND;
     Ok(())
+}
+
+/// The Keeper starts at the camp, matching the client's map, so the first
+/// position post is a step away from the spawn instead of a leap from (0, 0).
+fn spawn(ctx: &mut Context<Join>, now: i64) {
+    let player = &mut ctx.accounts.player;
+    player.x = MEADOW_SPAWN_X;
+    player.y = MEADOW_SPAWN_Y;
+    player.zone = 0;
+    player.moved_at = now;
 }
 
 fn open<'info>(

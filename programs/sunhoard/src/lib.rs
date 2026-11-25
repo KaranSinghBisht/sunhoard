@@ -14,6 +14,13 @@ declare_id!("FxqDh8g5KcZbEzg4AJsX5yUit6A63BC5PoncdWjtBKqS");
 
 // The program macro generates handlers at the crate root. The Accounts derive
 // emits its helper modules next to the struct, so both are re-exported here.
+pub(crate) use instructions::anvil::__client_accounts_strike;
+pub(crate) use instructions::anvil::__client_accounts_strike_cb;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::anvil::__cpi_client_accounts_strike;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::anvil::__cpi_client_accounts_strike_cb;
+pub use instructions::anvil::{Strike, StrikeCb};
 pub(crate) use instructions::crack::__client_accounts_crack;
 pub(crate) use instructions::crack::__client_accounts_crack_reveal;
 #[cfg(feature = "cpi")]
@@ -21,6 +28,13 @@ pub(crate) use instructions::crack::__cpi_client_accounts_crack;
 #[cfg(feature = "cpi")]
 pub(crate) use instructions::crack::__cpi_client_accounts_crack_reveal;
 pub use instructions::crack::{Crack, CrackReveal};
+pub(crate) use instructions::craft::__client_accounts_craft;
+pub(crate) use instructions::craft::__client_accounts_craft_cb;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::craft::__cpi_client_accounts_craft;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::craft::__cpi_client_accounts_craft_cb;
+pub use instructions::craft::{Craft, CraftCb};
 #[cfg(feature = "debug")]
 pub use instructions::debug::DebugGrant;
 #[cfg(feature = "debug")]
@@ -38,13 +52,34 @@ pub use instructions::delegate_shared::DelegateShared;
 pub(crate) use instructions::delegate_shared::__client_accounts_delegate_shared;
 #[cfg(feature = "cpi")]
 pub(crate) use instructions::delegate_shared::__cpi_client_accounts_delegate_shared;
+pub(crate) use instructions::demo::__client_accounts_demo_grant;
+pub(crate) use instructions::demo::__client_accounts_set_demo_mode;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::demo::__cpi_client_accounts_demo_grant;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::demo::__cpi_client_accounts_set_demo_mode;
+pub use instructions::demo::{DemoGrant, SetDemoMode};
+pub(crate) use instructions::dungeon::__client_accounts_chest_cb;
 pub(crate) use instructions::dungeon::__client_accounts_dungeon_cb;
 pub(crate) use instructions::dungeon::__client_accounts_enter_dungeon;
+pub(crate) use instructions::dungeon::__client_accounts_next_room;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::dungeon::__cpi_client_accounts_chest_cb;
 #[cfg(feature = "cpi")]
 pub(crate) use instructions::dungeon::__cpi_client_accounts_dungeon_cb;
 #[cfg(feature = "cpi")]
 pub(crate) use instructions::dungeon::__cpi_client_accounts_enter_dungeon;
-pub use instructions::dungeon::{DungeonCb, EnterDungeon};
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::dungeon::__cpi_client_accounts_next_room;
+pub use instructions::dungeon::{ChestCb, DungeonCb, EnterDungeon, NextRoom};
+pub(crate) use instructions::eat::__client_accounts_eat;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::eat::__cpi_client_accounts_eat;
+pub use instructions::eat::Eat;
+pub(crate) use instructions::equip::__client_accounts_equip;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::equip::__cpi_client_accounts_equip;
+pub use instructions::equip::Equip;
 pub use instructions::exit::ExitDungeon;
 pub(crate) use instructions::exit::__client_accounts_exit_dungeon;
 #[cfg(feature = "cpi")]
@@ -72,12 +107,48 @@ pub use instructions::join::Join;
 pub(crate) use instructions::join::__client_accounts_join;
 #[cfg(feature = "cpi")]
 pub(crate) use instructions::join::__cpi_client_accounts_join;
+pub(crate) use instructions::lair::__client_accounts_catch_spark;
+pub(crate) use instructions::lair::__client_accounts_enter_lair;
+pub(crate) use instructions::lair::__client_accounts_exit_lair;
+pub(crate) use instructions::lair::__client_accounts_lair_cb;
+pub(crate) use instructions::lair::__client_accounts_lair_input;
+pub(crate) use instructions::lair::__client_accounts_tick_lair;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::lair::__cpi_client_accounts_catch_spark;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::lair::__cpi_client_accounts_enter_lair;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::lair::__cpi_client_accounts_exit_lair;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::lair::__cpi_client_accounts_lair_cb;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::lair::__cpi_client_accounts_lair_input;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::lair::__cpi_client_accounts_tick_lair;
+pub use instructions::lair::{CatchSpark, EnterLair, ExitLair, LairCb, LairInput, TickLair};
 #[cfg(feature = "debug")]
 pub use instructions::kill::DebugKill;
 #[cfg(feature = "debug")]
 pub(crate) use instructions::kill::__client_accounts_debug_kill;
 #[cfg(all(feature = "debug", feature = "cpi"))]
 pub(crate) use instructions::kill::__cpi_client_accounts_debug_kill;
+pub(crate) use instructions::market::__client_accounts_buy;
+pub(crate) use instructions::market::__client_accounts_cancel;
+pub(crate) use instructions::market::__client_accounts_list;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::market::__cpi_client_accounts_buy;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::market::__cpi_client_accounts_cancel;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::market::__cpi_client_accounts_list;
+pub use instructions::market::{Buy, Cancel, List};
+pub(crate) use instructions::merchant::__client_accounts_merchant_buy;
+pub(crate) use instructions::merchant::__client_accounts_merchant_sell;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::merchant::__cpi_client_accounts_merchant_buy;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::merchant::__cpi_client_accounts_merchant_sell;
+pub use instructions::merchant::{MerchantBuy, MerchantSell};
 pub use instructions::permissions::SetPermissionsShared;
 pub(crate) use instructions::permissions::__client_accounts_set_permissions_shared;
 #[cfg(feature = "cpi")]
@@ -93,13 +164,16 @@ pub(crate) use instructions::record::__cpi_client_accounts_claim;
 #[cfg(feature = "cpi")]
 pub(crate) use instructions::record::__cpi_client_accounts_record_payout;
 pub use instructions::record::{Claim, RecordPayout};
+pub(crate) use instructions::season::__client_accounts_name_wyrm;
 pub(crate) use instructions::season::__client_accounts_salt_cb;
 pub(crate) use instructions::season::__client_accounts_start_season;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::season::__cpi_client_accounts_name_wyrm;
 #[cfg(feature = "cpi")]
 pub(crate) use instructions::season::__cpi_client_accounts_salt_cb;
 #[cfg(feature = "cpi")]
 pub(crate) use instructions::season::__cpi_client_accounts_start_season;
-pub use instructions::season::{SaltCb, StartSeason};
+pub use instructions::season::{NameWyrm, SaltCb, StartSeason};
 pub use instructions::settle::SettleSeason;
 pub(crate) use instructions::settle::__client_accounts_settle_season;
 #[cfg(feature = "cpi")]
@@ -112,6 +186,37 @@ pub use instructions::tick::TickArena;
 pub(crate) use instructions::tick::__client_accounts_tick_arena;
 #[cfg(feature = "cpi")]
 pub(crate) use instructions::tick::__cpi_client_accounts_tick_arena;
+pub(crate) use instructions::village::__client_accounts_bell_cb;
+pub(crate) use instructions::village::__client_accounts_collect;
+pub(crate) use instructions::village::__client_accounts_feed;
+pub(crate) use instructions::village::__client_accounts_place_gem;
+pub(crate) use instructions::village::__client_accounts_recruit;
+pub(crate) use instructions::village::__client_accounts_ring_bell;
+pub(crate) use instructions::village::__client_accounts_take_gem;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::village::__cpi_client_accounts_bell_cb;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::village::__cpi_client_accounts_collect;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::village::__cpi_client_accounts_feed;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::village::__cpi_client_accounts_place_gem;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::village::__cpi_client_accounts_recruit;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::village::__cpi_client_accounts_ring_bell;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::village::__cpi_client_accounts_take_gem;
+pub use instructions::village::{
+    BellCb, Collect, Feed, PlaceGem, Recruit, RingBell, TakeGem,
+};
+pub(crate) use instructions::world::__client_accounts_schedule_world;
+pub(crate) use instructions::world::__client_accounts_tick_world;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::world::__cpi_client_accounts_schedule_world;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::world::__cpi_client_accounts_tick_world;
+pub use instructions::world::{ScheduleWorld, TickWorld};
 
 #[ephemeral]
 #[program]
@@ -263,13 +368,262 @@ pub mod sunhoard {
         instructions::tick::handle(ctx)
     }
 
-    /// Stops the crank and banks a clear.
+    /// Advances to the next room after a clear. Session-signed; the seed is VRF.
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn next_room(ctx: Context<NextRoom>) -> Result<()> {
+        instructions::dungeon::next_room(ctx, instruction::DungeonCb::DISCRIMINATOR.to_vec())
+    }
+
+    /// Pays the boss chest once the glow roll lands.
+    pub fn chest_cb(ctx: Context<ChestCb>, randomness: [u8; 32], nonce: u64) -> Result<()> {
+        instructions::dungeon::consume_chest(ctx, randomness, nonce)
+    }
+
+    /// Stops the crank. A cleared sixth room banks the run and rolls the chest.
     #[session_auth_or(
         ctx.accounts.player.owner == ctx.accounts.payer.key(),
         SessionError::InvalidToken
     )]
     pub fn exit_dungeon(ctx: Context<ExitDungeon>) -> Result<()> {
-        instructions::exit::handle(ctx)
+        instructions::exit::handle(ctx, instruction::ChestCb::DISCRIMINATOR.to_vec())
+    }
+
+    /// The workbench: materials pay out now, gear waits for one rarity roll.
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn craft(ctx: Context<Craft>, recipe_id: u8) -> Result<()> {
+        instructions::craft::request(ctx, recipe_id, instruction::CraftCb::DISCRIMINATOR.to_vec())
+    }
+
+    /// Writes the crafted gear's rarity and traits. The roll is not logged.
+    pub fn craft_cb(ctx: Context<CraftCb>, randomness: [u8; 32], nonce: u64) -> Result<()> {
+        instructions::craft::consume(ctx, randomness, nonce)
+    }
+
+    /// Sells one slot to Auntie Pell at the Charter price.
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn merchant_sell(ctx: Context<MerchantSell>, slot: u8) -> Result<()> {
+        instructions::merchant::sell(ctx, slot)
+    }
+
+    /// Buys one good from Auntie Pell's shop.
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn merchant_buy(ctx: Context<MerchantBuy>, good: u16) -> Result<()> {
+        instructions::merchant::buy(ctx, good)
+    }
+
+    /// Eats one meal from the pack. At most four a day.
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn eat(ctx: Context<Eat>, slot: u8) -> Result<()> {
+        instructions::eat::handle(ctx, slot)
+    }
+
+    /// Equips the gear in one pack slot. The dungeon reads it on entry.
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn equip(ctx: Context<Equip>, slot: u8) -> Result<()> {
+        instructions::equip::handle(ctx, slot)
+    }
+
+    /// Lists one pack slot on the Coldfair at a fixed price. 1 Glint deposit.
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn list(ctx: Context<List>, slot: u8, price: u64) -> Result<()> {
+        instructions::market::list(ctx, slot, price)
+    }
+
+    /// Takes an unsold listing back. The deposit stays burned.
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn cancel(ctx: Context<Cancel>, listing: u8) -> Result<()> {
+        instructions::market::cancel(ctx, listing)
+    }
+
+    /// Buys a listing: both purses, the item and the Hearth Penny split move
+    /// atomically.
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn buy(ctx: Context<Buy>, listing: u8) -> Result<()> {
+        instructions::market::buy(ctx, listing)
+    }
+
+    /// Strikes the anvil: the item, fodder and Glints go in, one VRF roll
+    /// decides whether it comes out a rarity higher.
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn strike(
+        ctx: Context<Strike>,
+        slot: u8,
+        fodder: Vec<u8>,
+        glints: u64,
+    ) -> Result<()> {
+        instructions::anvil::strike(
+            ctx,
+            slot,
+            fodder,
+            glints,
+            instruction::StrikeCb::DISCRIMINATOR.to_vec(),
+        )
+    }
+
+    /// The strike roll: a win raises the rarity, a crack returns scrap.
+    pub fn strike_cb(ctx: Context<StrikeCb>, randomness: [u8; 32], nonce: u64) -> Result<()> {
+        instructions::anvil::consume(ctx, randomness, nonce)
+    }
+
+    /// Steps into the Crater. The Glare runs here: a warm purse is marked.
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn enter_lair(ctx: Context<EnterLair>) -> Result<()> {
+        instructions::lair::enter(ctx, instruction::LairCb::DISCRIMINATOR.to_vec())
+    }
+
+    /// Writes the visit seed. The bytes are not logged.
+    pub fn lair_cb(ctx: Context<LairCb>, randomness: [u8; 32], nonce: u64) -> Result<()> {
+        instructions::lair::consume(ctx, randomness, nonce)
+    }
+
+    /// Stores the move the next lair tick will use.
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn lair_input(
+        ctx: Context<LairInput>,
+        dx: i8,
+        dy: i8,
+        attack: u8,
+        dash: u8,
+    ) -> Result<()> {
+        instructions::lair::input(ctx, dx, dy, attack, dash)
+    }
+
+    /// Advances one fixed 100 ms step of the visit. Anyone may call it.
+    pub fn tick_lair(ctx: Context<TickLair>) -> Result<()> {
+        instructions::lair::tick(ctx)
+    }
+
+    /// Leaves the Crater early. The flushed damage still counts.
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn exit_lair(ctx: Context<ExitLair>) -> Result<()> {
+        instructions::lair::exit(ctx)
+    }
+
+    /// Scoops a nearby spark into the purse.
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn catch_spark(ctx: Context<CatchSpark>) -> Result<()> {
+        instructions::lair::catch(ctx)
+    }
+
+    /// The admin schedules the season-clock crank once per season.
+    pub fn schedule_world(ctx: Context<ScheduleWorld>) -> Result<()> {
+        instructions::world::schedule(ctx)
+    }
+
+    /// One season-clock tick: phases, Pell's Wants, bounties. Anyone may call.
+    pub fn tick_world(ctx: Context<TickWorld>) -> Result<()> {
+        instructions::world::tick(ctx)
+    }
+
+    /// Sets a block into a built lantern post.
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn place_gem(ctx: Context<PlaceGem>, slot: u8) -> Result<()> {
+        instructions::village::place_gem(ctx, slot)
+    }
+
+    /// Takes a placed block back into the pack.
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn take_gem(ctx: Context<TakeGem>, post: u8) -> Result<()> {
+        instructions::village::take_gem(ctx, post)
+    }
+
+    /// Settles villager output into the pack.
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn collect(ctx: Context<Collect>) -> Result<()> {
+        instructions::village::collect(ctx)
+    }
+
+    /// Feeds the village stockpile from the pack.
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn feed(ctx: Context<Feed>, slot: u8) -> Result<()> {
+        instructions::village::feed(ctx, slot)
+    }
+
+    /// Rings the Hearth Bell. One VRF roll decides whether a wanderer comes.
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn ring_bell(ctx: Context<RingBell>) -> Result<()> {
+        instructions::village::ring_bell(ctx, instruction::BellCb::DISCRIMINATOR.to_vec())
+    }
+
+    /// The wanderer roll.
+    pub fn bell_cb(ctx: Context<BellCb>, randomness: [u8; 32], nonce: u8) -> Result<()> {
+        instructions::village::bell_cb(ctx, randomness, nonce)
+    }
+
+    /// Recruits the waiting wanderer for a 15-Glint gift.
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn recruit(ctx: Context<Recruit>, slot: u8) -> Result<()> {
+        instructions::village::recruit(ctx, slot)
+    }
+
+    /// The admin flips demo mode, which the season clock and chest odds read.
+    pub fn set_demo_mode(ctx: Context<SetDemoMode>, demo: u8) -> Result<()> {
+        instructions::demo::set_demo_mode(ctx, demo)
+    }
+
+    /// Demo grants, tagged DEMO. Works only in demo mode.
+    pub fn demo_grant(ctx: Context<DemoGrant>, kind: u16, rarity: u8, shell: u8) -> Result<()> {
+        instructions::demo::demo_grant(ctx, kind, rarity, shell)
     }
 
     /// Writes damage rows, and sets Old Gloam's HP to 0 when finish is 1.
@@ -298,5 +652,14 @@ pub mod sunhoard {
     /// Pays one unclaimed share from the Vault.
     pub fn claim(ctx: Context<Claim>) -> Result<()> {
         instructions::record::claim(ctx)
+    }
+
+    /// The Ember Egg holder names the next wyrm (A–Z and spaces, up to 16 chars).
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn name_wyrm(ctx: Context<NameWyrm>, name: String) -> Result<()> {
+        instructions::season::name_wyrm(ctx, name)
     }
 }

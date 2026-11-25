@@ -5,11 +5,19 @@ use super::ids::{
     NODE_ORE, NODE_ROCK,
 };
 use super::numbers::{
-    ABERRATION_WORTH, AURORA_ABERRATION_PPM, AURORA_CYCLE_SECS, AURORA_UP_SECS,
+    ABERRATION_WORTH, AURORA_ABERRATION_PPM, AURORA_CYCLE_SECS, AURORA_UP_SECS, BP,
     CLEAR_ABERRATION_PPM, ENERGY_MAX, ENERGY_REFILL_SECS, FATIGUE_HALF, FATIGUE_QUARTER,
     GATHER_COOLDOWN_SECS, GATHER_RANGE_UNITS,
 };
 use super::roll::ppm_of;
+
+/// A tool's gathering traits: Efficient cuts energy, Bountiful adds yield.
+/// Values are basis points; 0 means no trait.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct ToolBonus {
+    pub efficient_bp: u32,
+    pub bountiful_bp: u32,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GatherBase {
@@ -31,18 +39,20 @@ struct NodeSpec {
     qty: u32,
 }
 
-pub fn gather_base(node: u8, energy_used_today: u32) -> Result<GatherBase, LogicError> {
+pub fn gather_base(node: u8, energy_used_today: u32, tool: ToolBonus) -> Result<GatherBase, LogicError> {
     let spec = node_spec(node)?;
+    let energy = apply_efficient(spec.energy, tool.efficient_bp)?;
     Ok(GatherBase {
-        energy: spec.energy,
+        energy,
         kind: spec.kind,
-        qty: apply_fatigue(spec.qty, energy_used_today)?,
+        qty: apply_bountiful(apply_fatigue(spec.qty, energy_used_today)?, tool.bountiful_bp)?,
     })
 }
 
 pub fn gather_callback(
     node: u8,
     energy_used_today: u32,
+    tool: ToolBonus,
     vrf: &[u8; 32],
     aurora_up: bool,
 ) -> Result<GatherExtra, LogicError> {
@@ -64,11 +74,36 @@ pub fn gather_callback(
         .qty
         .checked_mul(ABERRATION_WORTH)
         .ok_or(LogicError::Overflow)?;
+    let tired = apply_fatigue(raw, energy_used_today)?;
     Ok(GatherExtra {
         kind: spec.kind,
-        qty: apply_fatigue(raw, energy_used_today)?,
+        qty: apply_bountiful(tired, tool.bountiful_bp)?,
         aberration: true,
     })
+}
+
+/// Efficient cuts the energy cost: −6/−15/−25% at tiers I/III/V, never below 1.
+fn apply_efficient(energy: u32, efficient_bp: u32) -> Result<u32, LogicError> {
+    if efficient_bp > BP {
+        return Err(LogicError::BadAmount);
+    }
+    let cut = u64::from(energy)
+        .checked_mul(u64::from(BP - efficient_bp))
+        .ok_or(LogicError::Overflow)?
+        / u64::from(BP);
+    Ok(u32::try_from(cut).unwrap_or(1).max(1))
+}
+
+/// Bountiful adds yield: +10/+25/+40% at tiers I/III/V.
+fn apply_bountiful(qty: u32, bountiful_bp: u32) -> Result<u32, LogicError> {
+    if bountiful_bp > BP {
+        return Err(LogicError::BadAmount);
+    }
+    let grown = u64::from(qty)
+        .checked_mul(u64::from(BP + bountiful_bp))
+        .ok_or(LogicError::Overflow)?
+        / u64::from(BP);
+    u32::try_from(grown).map_err(|_| LogicError::Overflow)
 }
 
 pub fn in_gather_range(px: u16, py: u16, nx: u16, ny: u16) -> bool {
@@ -168,21 +203,50 @@ fn node_spec(node: u8) -> Result<NodeSpec, LogicError> {
 mod tests {
     use super::{
         aurora_up, cooldown_ready, gather_base, gather_callback, in_gather_range, refill_energy,
+        ToolBonus,
     };
     use crate::errors::LogicError;
     use crate::logic::ids::{KIND_ORE, KIND_WOOD, NODE_BIRCH, NODE_ORE};
 
+    const NONE: ToolBonus = ToolBonus {
+        efficient_bp: 0,
+        bountiful_bp: 0,
+    };
+
     #[test]
     fn costs_and_fatigue() {
-        let birch = gather_base(NODE_BIRCH, 0).unwrap();
+        let birch = gather_base(NODE_BIRCH, 0, NONE).unwrap();
         assert_eq!(birch.energy, 1);
         assert_eq!(birch.kind, KIND_WOOD);
         assert_eq!(birch.qty, 1);
-        assert_eq!(gather_base(NODE_ORE, 0).unwrap().energy, 3);
-        assert_eq!(gather_base(NODE_ORE, 0).unwrap().kind, KIND_ORE);
-        assert_eq!(gather_base(NODE_BIRCH, 499).unwrap().qty, 1);
-        assert_eq!(gather_base(NODE_BIRCH, 500).unwrap().qty, 0);
-        assert!(gather_base(9, 0).is_err());
+        assert_eq!(gather_base(NODE_ORE, 0, NONE).unwrap().energy, 3);
+        assert_eq!(gather_base(NODE_ORE, 0, NONE).unwrap().kind, KIND_ORE);
+        assert_eq!(gather_base(NODE_BIRCH, 499, NONE).unwrap().qty, 1);
+        assert_eq!(gather_base(NODE_BIRCH, 500, NONE).unwrap().qty, 0);
+        assert!(gather_base(9, 0, NONE).is_err());
+    }
+
+    #[test]
+    fn tools_move_the_numbers() {
+        let efficient = ToolBonus {
+            efficient_bp: 1_500,
+            bountiful_bp: 0,
+        };
+        let ore = gather_base(NODE_ORE, 0, efficient).unwrap();
+        // 3 energy × 0.85 = 2.55 → 2.
+        assert_eq!(ore.energy, 2);
+
+        let bountiful = ToolBonus {
+            efficient_bp: 0,
+            bountiful_bp: 2_500,
+        };
+        assert_eq!(gather_base(NODE_BIRCH, 0, bountiful).unwrap().qty, 1);
+        assert_eq!(gather_base(NODE_BIRCH, 499, bountiful).unwrap().qty, 1);
+        assert_eq!(gather_base(NODE_BIRCH, 500, bountiful).unwrap().qty, 0);
+        let vrf = [0u8; 32];
+        let hit = gather_callback(NODE_BIRCH, 0, bountiful, &vrf, false).unwrap();
+        // 20 × 1.25 = 25.
+        assert_eq!(hit.qty, 25);
     }
 
     #[test]
@@ -204,19 +268,19 @@ mod tests {
     #[test]
     fn aberration_pays_twenty_then_fatigue_and_a_high_roll_pays_nothing() {
         let mut vrf = [0u8; 32];
-        let hit = gather_callback(NODE_BIRCH, 0, &vrf, false).unwrap();
+        let hit = gather_callback(NODE_BIRCH, 0, NONE, &vrf, false).unwrap();
         assert!(hit.aberration);
         assert_eq!(hit.qty, 20);
         assert_eq!(hit.kind, KIND_WOOD);
 
-        let tired = gather_callback(NODE_BIRCH, 500, &vrf, false).unwrap();
+        let tired = gather_callback(NODE_BIRCH, 500, NONE, &vrf, false).unwrap();
         assert_eq!(tired.qty, 10);
 
         vrf[0] = 0xff;
         vrf[1] = 0xff;
         vrf[2] = 0xff;
         vrf[3] = 0xff;
-        let miss = gather_callback(NODE_BIRCH, 0, &vrf, true).unwrap();
+        let miss = gather_callback(NODE_BIRCH, 0, NONE, &vrf, true).unwrap();
         assert!(!miss.aberration);
         assert_eq!(miss.qty, 0);
     }

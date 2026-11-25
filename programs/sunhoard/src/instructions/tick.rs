@@ -6,7 +6,7 @@ use super::fight_io::{read_fight, write_fight};
 use crate::errors::{GameError, LogicError};
 use crate::logic::arena::Intent;
 use crate::logic::numbers::TICK_MIN_SLOTS;
-use crate::logic::{step_fight, stone_weapon};
+use crate::logic::{room_clear, step_fight, Weapon};
 use crate::state::{Arena, ARENA_SEED, MODE_FIGHT};
 
 pub fn handle(ctx: Context<TickArena>) -> Result<()> {
@@ -25,8 +25,17 @@ pub fn handle(ctx: Context<TickArena>) -> Result<()> {
         dash: arena.intent_dash == 1,
     };
     let seed = arena.seed;
+    let weapon = Weapon {
+        material: arena.weapon_material,
+        rarity: arena.weapon_rarity,
+        keen_ppm: u32::from(arena.weapon_keen),
+        brutal_bp: u32::from(arena.weapon_brutal),
+    };
     let mut fight = read_fight(arena);
-    step_fight(&mut fight, intent, &seed, &stone_weapon()).map_err(rule)?;
+    step_fight(&mut fight, intent, &seed, &weapon).map_err(rule)?;
+    if room_clear(&fight) && arena.cleared == 0 {
+        arena.cleared = 1;
+    }
     write_fight(arena, &fight);
     arena.last_slot = slot;
     Ok(())

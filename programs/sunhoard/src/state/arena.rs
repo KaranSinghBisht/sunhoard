@@ -15,7 +15,9 @@ pub struct Body {
     pub invuln: u8,
     pub dash_cd: u8,
     pub dash_left: u8,
-    pub _pad: [u8; 3],
+    /// Steps of Snuff frost left: −40% speed.
+    pub slow: u8,
+    pub _pad: [u8; 2],
 }
 
 #[zero_copy]
@@ -54,23 +56,50 @@ pub struct Arena {
     pub player_hp: i32,
     pub glare: i32,
     pub boss_timer: u16,
+    /// The weapon the run uses: material, rarity and the two combat traits.
+    pub weapon_keen: u16,
+    pub weapon_brutal: u16,
     pub mode: u8,
     pub room: u8,
     pub monster_count: u8,
     pub shot_count: u8,
     pub spark_count: u8,
     pub boss_phase: u8,
+    /// The Snuffer's current attack pattern: 0 idle, 1 ember, 2 wick, 3 snuff.
+    pub boss_attack: u8,
+    /// Telegraph steps left before the attack lands.
+    pub boss_telegraph: u8,
+    /// Steps until the Snuffer picks its next attack.
+    pub boss_cd: u8,
+    pub weapon_material: u8,
+    pub weapon_rarity: u8,
+    /// HP carried between rooms; the lantern restores 30% of what is missing.
+    pub carry_hp: u8,
+    /// 1 when the current room is cleared and `next_room` may run.
+    pub cleared: u8,
+    /// 1 while a chest roll is still on its way.
+    pub chest_pending: u8,
+    /// 1 when this arena is running a lair visit, not a dungeon.
+    pub lair: u8,
+    pub _pad_mid: [u8; 3],
     pub player: Body,
     pub _pad_player: [u8; 4],
     pub monsters: [Monster; MAX_MONSTERS],
     pub shots: [Shot; SHOT_SLOTS],
     pub sparks: [Shot; SHOT_SLOTS],
     pub run_nonce: u64,
+    /// Nonce of the chest VRF request, so a stale callback cannot land twice.
+    pub chest_nonce: u64,
     pub intent_dx: i8,
     pub intent_dy: i8,
     pub intent_attack: u8,
     pub intent_dash: u8,
-    pub _pad_end: [u8; 4],
+    /// Hits since the last spark in the Gloaming.
+    pub lair_hits: u8,
+    pub _pad_lair: [u8; 3],
+    /// The spark's Sunhoard share, and the heal if it drifts back.
+    pub spark_value: u32,
+    pub spark_heal: u32,
 }
 
 impl Arena {

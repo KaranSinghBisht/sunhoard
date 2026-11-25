@@ -46,6 +46,8 @@ pub struct Village {
     pub beds: u16,
     pub _pad: [u8; 2],
     pub bell_until: i64,
+    /// When villager output was last settled into the stockpile.
+    pub last_collect: i64,
     pub stockpile: [u32; 5],
     pub _pad_stock: [u8; 4],
     pub workstations: [u8; 4],

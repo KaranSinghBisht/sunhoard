@@ -9,7 +9,7 @@ use crate::errors::{GameError, LogicError};
 use crate::logic::{commitment, reveal_shell, seal_key, thaw_fee, Gem};
 use crate::state::{
     Inventory, ItemSlot, Player, Purse, Season, World, CRACKING, INVENTORY_SEED, LISTED,
-    PLAYER_SEED, PURSE_SEED, SEALED, SEASON_SEED, WORLD_SEED,
+    PLAYER_SEED, PRISTINE, PURSE_SEED, SEALED, SEASON_SEED, WORLD_SEED,
 };
 
 pub fn crack(ctx: Context<Crack>, slot: u8) -> Result<()> {
@@ -139,6 +139,7 @@ fn pay_dust(ctx: &mut Context<CrackReveal>, index: usize, dust: u64) -> Result<(
 
 fn write_gem(slot: &mut ItemSlot, id: u64, key: [u8; 32], gem: Gem, shell: u8) {
     slot.id = id;
+    slot.kind = 0;
     slot.commitment = commitment(&key);
     slot.revealed_key = key;
     slot.cracking_since = 0;
@@ -148,7 +149,8 @@ fn write_gem(slot: &mut ItemSlot, id: u64, key: [u8; 32], gem: Gem, shell: u8) {
     slot.shell_size = shell;
     slot.tone = gem.tone;
     slot.grade = gem.grade;
-    slot.flags &= !(SEALED | CRACKING);
+    // A fresh thaw is pristine until it is socketed. Bound and demo bits stay.
+    slot.flags = (slot.flags & (crate::state::BOUND | crate::state::DEMO)) | PRISTINE;
 }
 
 fn clear(slot: &mut ItemSlot) {

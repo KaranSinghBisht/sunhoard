@@ -11,6 +11,8 @@ pub enum GameError {
     NotReady,
     #[msg("Your pack is full.")]
     Full,
+    #[msg("Old Gloam has fallen. The sun is free.")]
+    SunFree,
 }
 
 /// Rule failures. The program maps these to player-facing errors later.
@@ -24,6 +26,7 @@ pub enum LogicError {
     BadIntent,
     BadEnergy,
     BadRoom,
+    BadAmount,
     Full,
     ManyKillers,
     TooManyRows,

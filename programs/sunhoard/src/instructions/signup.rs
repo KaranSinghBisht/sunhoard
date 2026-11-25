@@ -18,6 +18,7 @@ pub fn handle(ctx: Context<SignUp>) -> Result<()> {
     player.energy = ENERGY_MAX;
     player.energy_last = now;
     player.moved_at = now;
+    player.born_at = now;
     ctx.accounts.purse.owner = owner;
     ctx.accounts.inventory.load_init()?.owner = owner;
     ctx.accounts.village.load_init()?.owner = owner;

@@ -10,17 +10,32 @@ use ephemeral_rollups_sdk::vrf::types::SerializableAccountMeta;
 use crate::errors::GameError;
 use crate::logic::numbers::{
     GLOAM_HP_DEMO, GLOAM_HP_LIVE, LONG_NIGHT_DEMO_SECS, LONG_NIGHT_LIVE_SECS, PHASE_LONG_NIGHT,
+    SALT_RELEASE_SECS,
 };
 use crate::logic::sealed_hp;
-use crate::state::{Season, World, DEMO_MODE, SALT_PENDING, SEASON_SEED, WORLD_SEED};
+use crate::state::{
+    Player, Season, World, DEMO_MODE, HAS_EMBER, PLAYER_SEED, SALT_PENDING, SEASON_SEED,
+    WORLD_SEED, WYRM_NAME_LEN,
+};
+use session_keys::{Session, SessionTokenV2};
 
 pub fn request(ctx: Context<StartSeason>, discriminator: Vec<u8>) -> Result<()> {
     {
         let season = &mut ctx.accounts.season.load_mut()?;
-        if season.season_number != 0 || season.flags & SALT_PENDING != 0 {
+        if season.season_number != 0 {
             return err!(GameError::NotReady);
         }
+        let now = Clock::get()?.unix_timestamp;
+        if season.flags & SALT_PENDING != 0 {
+            // A dropped callback must not brick the season: after the release window
+            // the admin may ask the VRF again. `phase_started` holds the request time.
+            let waited = now.saturating_sub(season.phase_started);
+            if waited >= 0 && waited < SALT_RELEASE_SECS {
+                return err!(GameError::NotReady);
+            }
+        }
         season.flags |= SALT_PENDING;
+        season.phase_started = now;
     }
     let ix = create_request_scoped_randomness_ix(RequestRandomnessParams {
         payer: ctx.accounts.admin.key(),
@@ -66,6 +81,25 @@ pub fn consume(ctx: Context<SaltCb>, randomness: [u8; 32]) -> Result<()> {
     Ok(())
 }
 
+/// The Ember Egg holder names the next wyrm (A–Z and spaces, at most 16 chars).
+pub fn name_wyrm(ctx: Context<NameWyrm>, name: String) -> Result<()> {
+    let trimmed = name.trim();
+    if trimmed.is_empty()
+        || trimmed.len() > WYRM_NAME_LEN
+        || !trimmed.bytes().all(|b| b.is_ascii_uppercase() || b == b' ')
+    {
+        return err!(GameError::BadAmount);
+    }
+    let season = &mut ctx.accounts.season.load_mut()?;
+    if season.flags & HAS_EMBER == 0 || season.ember_holder != ctx.accounts.player.owner {
+        return err!(GameError::NotReady);
+    }
+    season.wyrm_name = [0; WYRM_NAME_LEN];
+    season.wyrm_name[..trimmed.len()].copy_from_slice(trimmed.as_bytes());
+    season.flags &= !HAS_EMBER;
+    Ok(())
+}
+
 fn write_world(world: &mut World, randomness: [u8; 32], hp: u64) {
     world.salts[0] = randomness;
     world.epoch = 0;
@@ -102,4 +136,15 @@ pub struct SaltCb<'info> {
     pub season: AccountLoader<'info, Season>,
     #[account(mut, seeds = [WORLD_SEED], bump)]
     pub world: Account<'info, World>,
+}
+
+#[derive(Accounts, Session)]
+pub struct NameWyrm<'info> {
+    pub payer: Signer<'info>,
+    #[account(seeds = [PLAYER_SEED, player.owner.as_ref()], bump)]
+    pub player: Account<'info, Player>,
+    #[account(mut, seeds = [SEASON_SEED], bump)]
+    pub season: AccountLoader<'info, Season>,
+    #[session(signer = payer, authority = player.owner)]
+    pub session_token: Option<Account<'info, SessionTokenV2>>,
 }

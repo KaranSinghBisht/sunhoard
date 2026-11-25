@@ -12,6 +12,7 @@ use super::stack::add_kind;
 use crate::errors::{GameError, LogicError};
 use crate::logic::{
     aurora_up, cooldown_ready, gather_base, gather_callback, in_gather_range, refill_energy,
+    ToolBonus,
 };
 use crate::state::{Inventory, Player, GATHER_PENDING, INVENTORY_SEED, PLAYER_SEED};
 
@@ -32,7 +33,8 @@ pub fn request(
 pub fn consume(ctx: Context<GatherCb>, randomness: [u8; 32], nonce: u64) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let (node, used) = take_pending(&mut ctx.accounts.player, nonce)?;
-    let extra = gather_callback(node, used, &randomness, aurora_up(now)).map_err(rule)?;
+    let tool = tool_bonus(&*ctx.accounts.inventory.load()?, &ctx.accounts.player);
+    let extra = gather_callback(node, used, tool, &randomness, aurora_up(now)).map_err(rule)?;
     add_kind(
         &mut *ctx.accounts.inventory.load_mut()?,
         extra.kind,
@@ -43,8 +45,9 @@ pub fn consume(ctx: Context<GatherCb>, randomness: [u8; 32], nonce: u64) -> Resu
 fn prepare(ctx: &mut Context<Gather>, node: u8, node_x: u16, node_y: u16) -> Result<(Pubkey, u64)> {
     let now = Clock::get()?.unix_timestamp;
     let (kind, qty, owner, nonce) = {
+        let tool = tool_bonus(&*ctx.accounts.inventory.load()?, &ctx.accounts.player);
         let player = &mut ctx.accounts.player;
-        let (kind, qty) = charge(player, node, node_x, node_y, now)?;
+        let (kind, qty) = charge(player, node, node_x, node_y, now, tool)?;
         let nonce = mark(player, node, now)?;
         (kind, qty, player.owner, nonce)
     };
@@ -52,10 +55,39 @@ fn prepare(ctx: &mut Context<Gather>, node: u8, node_x: u16, node_y: u16) -> Res
     Ok((owner, nonce))
 }
 
+/// The equipped tool's Efficient and Bountiful tiers, as basis points.
+pub(crate) fn tool_bonus(inventory: &Inventory, player: &Player) -> ToolBonus {
+    let mut bonus = ToolBonus::default();
+    let slot = usize::from(player.equipped_slot);
+    if player.equipped_slot == u8::MAX || slot >= inventory.slots.len() {
+        return bonus;
+    }
+    let item = &inventory.slots[slot];
+    if !crate::logic::ids::is_tool_kind(item.kind) {
+        return bonus;
+    }
+    for pair in item.traits.iter() {
+        let tier = usize::from(pair.tier).min(5);
+        match pair.id {
+            crate::logic::ids::TRAIT_EFFICIENT => bonus.efficient_bp = crate::logic::numbers::EFFICIENT_BP[tier],
+            crate::logic::ids::TRAIT_BOUNTIFUL => bonus.bountiful_bp = crate::logic::numbers::BOUNTIFUL_BP[tier],
+            _ => {}
+        }
+    }
+    bonus
+}
+
 const PENDING_SECS: i64 = 30;
 const DAY_SECS: i64 = 86_400;
 
-fn charge(player: &mut Player, node: u8, node_x: u16, node_y: u16, now: i64) -> Result<(u16, u32)> {
+fn charge(
+    player: &mut Player,
+    node: u8,
+    node_x: u16,
+    node_y: u16,
+    now: i64,
+    tool: ToolBonus,
+) -> Result<(u16, u32)> {
     if player.player_number == 0 {
         return err!(GameError::NotReady);
     }
@@ -73,7 +105,7 @@ fn charge(player: &mut Player, node: u8, node_x: u16, node_y: u16, now: i64) -> 
         return err!(GameError::NotReady);
     }
     let used = player.energy_used_today;
-    let base = gather_base(node, used).map_err(rule)?;
+    let base = gather_base(node, used, tool).map_err(rule)?;
     player.energy = player
         .energy
         .checked_sub(base.energy)

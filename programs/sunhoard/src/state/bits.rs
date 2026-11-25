@@ -7,16 +7,21 @@ pub const SOCKETED: u8 = 1 << 3;
 pub const LISTED: u8 = 1 << 4;
 pub const BOUND: u8 = 1 << 5;
 pub const DEMO: u8 = 1 << 6;
+/// An item on the anvil, waiting for its strike roll.
+pub const FORGING: u8 = 1 << 7;
 
 pub const DEMO_MODE: u8 = 1 << 0;
 pub const HAS_KILLER: u8 = 1 << 1;
 pub const HAS_EMBER: u8 = 1 << 2;
 pub const SALT_PENDING: u8 = 1 << 3;
 pub const GATHER_PENDING: u8 = 1 << 0;
+pub const CRAFT_PENDING: u8 = 1 << 0;
+pub const STRIKE_PENDING: u8 = 1 << 0;
 
 pub const MODE_IDLE: u8 = 0;
 pub const MODE_WAIT: u8 = 1;
 pub const MODE_FIGHT: u8 = 2;
+pub const MODE_LAIR: u8 = 3;
 
 pub const CLEARED_T1: u8 = 1 << 0;
 pub const IS_KILLER: u8 = 1 << 1;
@@ -25,6 +30,9 @@ pub const CLAIMED: u8 = 1 << 0;
 pub const QUIRK_REVEALED: u8 = 1 << 0;
 pub const POST_BUILT: u8 = 1 << 0;
 pub const HAS_BLOCK: u8 = 1 << 1;
+/// A wanderer sits in this villager slot until recruited.
+pub const WANDERER: u8 = 1 << 6;
+pub const BELL_PENDING: u8 = 1 << 0;
 
 pub const INVENTORY_SLOTS: usize = 48;
 pub const VILLAGER_SLOTS: usize = 16;

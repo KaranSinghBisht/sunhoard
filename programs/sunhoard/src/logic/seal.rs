@@ -2,8 +2,10 @@ use sha2::{Digest, Sha256};
 
 use crate::errors::LogicError;
 
-use super::ids::SHELL_CRATER;
-use super::numbers::{DUST_HUNDREDTHS, DUST_PPM, GRADE_PPM, PAIR_PPM_LARGE, THAW_FEE_HUNDREDTHS};
+use super::ids::{SHELL_BOSS, SHELL_CRATER};
+use super::numbers::{
+    DUST_HUNDREDTHS, DUST_PPM, GRADE_PPM, PAIR_PPM_LARGE, THAW_FEE_HUNDREDTHS,
+};
 use super::roll::{finish, ppm_of};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -47,6 +49,13 @@ pub fn reveal_shell(key: &[u8; 32], shell: u8) -> Result<RevealedShell, LogicErr
     }
     if shell == SHELL_CRATER {
         return Ok(two_gems(key, shell)?);
+    }
+    if shell == SHELL_BOSS {
+        // The day's first-clear block: no dust, one block, free to thaw.
+        return Ok(RevealedShell {
+            dust_hundredths: 0,
+            gems: [Some(gem_from(key, shell)?), None],
+        });
     }
     if ppm_of(word(key, 0)) < DUST_PPM[usize::from(shell)] {
         return Ok(RevealedShell {
