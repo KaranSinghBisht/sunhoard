@@ -1,187 +1,184 @@
 /**
- * Devnet setup for the shared accounts. The student runs this. It is not a deploy.
+ * Devnet setup for the shared accounts. The student runs this after the deploy.
+ * It is not a deploy, and it is safe to run twice: every step checks first.
  *
  *   cd game/scripts && yarn && cd ..
- *   export ANCHOR_PROVIDER_URL=https://api.devnet.solana.com
- *   export ANCHOR_WALLET=$HOME/.config/solana/sunhoard-admin.json
- *   export ER_URL=...   # MagicBlock devnet rollup. Leave unset to stop after delegation.
- *   node --experimental-strip-types scripts/init-game.ts
+ *   node --experimental-strip-types scripts/init-game.ts          # live clock
+ *   SUNHOARD_DEMO=1 node --experimental-strip-types scripts/init-game.ts   # demo clock
  *
- * Rollup steps use the queue and VRF program ids from the roll-dice example.
+ * Optional env (see scripts/.env.example): ANCHOR_PROVIDER_URL, ANCHOR_WALLET, ER_URL.
+ * Program ids for the queue and VRF come from MagicBlock's roll-dice example.
  */
-import { AnchorProvider, BN, Program, Wallet } from "@coral-xyz/anchor";
-import { ComputeBudgetProgram, Connection, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
-import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { SystemProgram } from "@solana/web3.js";
+import {
+  BN,
+  DELEGATION,
+  EPHEMERAL_VAULT,
+  type Game,
+  MAGIC,
+  PERMISSION,
+  PROGRAM_ID,
+  QUEUE,
+  SLOT_HASHES,
+  VALIDATOR,
+  VRF,
+  adminKeypair,
+  baseGame,
+  budget,
+  payoutPda,
+  pda,
+  permissionPda,
+  rollupGame,
+  run,
+  say,
+  shared,
+  text,
+  trio,
+} from "./lib.ts";
 
-const PROGRAM_ID = new PublicKey("FxqDh8g5KcZbEzg4AJsX5yUit6A63BC5PoncdWjtBKqS");
-const DELEGATION = new PublicKey("DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh");
-const VALIDATOR = new PublicKey("MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo");
-const MAGIC = new PublicKey("Magic11111111111111111111111111111111111111");
-const PERMISSION = new PublicKey("ACLseoPoyC3cBqoUtkbjZ4aDrkurZW86v19pXz2XQnp1");
-const EPHEMERAL_VAULT = new PublicKey("MagicVau1t999999999999999999999999999999999");
-const VRF = new PublicKey("Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz");
-const QUEUE = new PublicKey("5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc");
-const SLOT_HASHES = new PublicKey("SysvarS1otHashes111111111111111111111111111");
+/** The SOL the admin puts in the prize vault: 0.1 SOL of devnet money. */
 const VAULT_LAMPORTS = new BN(100_000_000);
 
-const idl = JSON.parse(readFileSync(new URL("../client/src/gen/idl/sunhoard.json", import.meta.url), "utf8"));
+type Shared = ReturnType<typeof shared>;
 
-function pda(seeds: Uint8Array[], program = PROGRAM_ID): PublicKey {
-  return PublicKey.findProgramAddressSync(seeds.map((seed) => Buffer.from(seed)), program)[0];
-}
-
-function text(value: string): Uint8Array {
-  return Buffer.from(value);
-}
-
-function trio(account: PublicKey) {
-  return {
-    buffer: pda([text("buffer"), account.toBytes()]),
-    record: pda([text("delegation"), account.toBytes()], DELEGATION),
-    metadata: pda([text("delegation-metadata"), account.toBytes()], DELEGATION),
-  };
-}
-
-function walletFromEnv(): Wallet {
-  const path = (process.env.ANCHOR_WALLET ?? `${homedir()}/.config/solana/sunhoard-admin.json`).replace(
-    "$HOME",
-    homedir(),
-  );
-  const secret = JSON.parse(readFileSync(path, "utf8")) as number[];
-  return new Wallet(Keypair.fromSecretKey(Uint8Array.from(secret)));
-}
-
-function providerFor(url: string, wallet: Wallet): AnchorProvider {
-  return new AnchorProvider(new Connection(url, "confirmed"), wallet, { commitment: "confirmed" });
-}
-
-function budget() {
-  return ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
-}
-
-async function main() {
-  const baseUrl = process.env.ANCHOR_PROVIDER_URL ?? "https://api.devnet.solana.com";
-  const wallet = walletFromEnv();
-  const base = new Program(idl, providerFor(baseUrl, wallet));
-  const admin = wallet.publicKey;
-  const season = pda([text("season")]);
-  const world = pda([text("world")]);
-  const market = pda([text("market")]);
-  const prices = pda([text("prices")]);
-  const presence = pda([text("presence")]);
-  const vault = pda([text("vault")]);
-  const payout = pda([text("payout"), Buffer.from(new BN(1).toArray("le", 8))]);
-  const escrow = pda([text("balance"), admin.toBytes(), Uint8Array.of(255)], DELEGATION);
-
+async function createShared(base: Game, admin: ReturnType<typeof adminKeypair>, at: Shared): Promise<void> {
   const connection = base.provider.connection;
-  if (!(await connection.getAccountInfo(season))) {
+  if (await connection.getAccountInfo(at.season)) {
+    say("shared accounts already exist");
+  } else {
+    const escrow = pda([text("balance"), admin.publicKey.toBytes(), Uint8Array.of(255)], DELEGATION);
+    await base.methods
+      .initGame(VAULT_LAMPORTS)
+      .accountsPartial({
+        admin: admin.publicKey,
+        season: at.season,
+        world: at.world,
+        market: at.market,
+        prices: at.prices,
+        presence: at.presence,
+        vault: at.vault,
+        escrow,
+        delegationProgram: DELEGATION,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+    say("shared accounts created");
+  }
+  const payout = payoutPda(1);
+  if (await connection.getAccountInfo(payout)) return;
   await base.methods
-    .initGame(VAULT_LAMPORTS)
-    .accounts({
-      admin,
-      season,
-      world,
-      market,
-      prices,
-      presence,
-      vault,
-      escrow,
-      delegationProgram: DELEGATION,
-      systemProgram: SystemProgram.programId,
-    })
+    .initPayout()
+    .accountsPartial({ admin: admin.publicKey, vault: at.vault, payout, systemProgram: SystemProgram.programId })
     .rpc();
-  }
-  if (!(await connection.getAccountInfo(payout))) {
-    await base.methods.initPayout().accounts({ admin, vault, payout, systemProgram: SystemProgram.programId }).rpc();
-  }
-  const seasonNow = await connection.getAccountInfo(season);
+  say("payout table created for season 1");
+}
 
-  if (seasonNow && !seasonNow.owner.equals(DELEGATION)) {
-  const seasonDel = trio(season);
-  const worldDel = trio(world);
-  const marketDel = trio(market);
-  const pricesDel = trio(prices);
-  const presenceDel = trio(presence);
+async function delegateShared(base: Game, admin: ReturnType<typeof adminKeypair>, at: Shared): Promise<void> {
+  const info = await base.provider.connection.getAccountInfo(at.season);
+  if (!info) throw new Error("the season account is missing after init_game");
+  if (info.owner.equals(DELEGATION)) {
+    say("shared accounts already delegated");
+    return;
+  }
+  const [season, world, market, prices, presence] = [at.season, at.world, at.market, at.prices, at.presence].map(trio);
   await base.methods
     .delegateShared()
     .preInstructions([budget()])
-    .accounts({
-      admin,
-      vault,
-      bufferSeason: seasonDel.buffer,
-      delegationRecordSeason: seasonDel.record,
-      delegationMetadataSeason: seasonDel.metadata,
-      season,
-      bufferWorld: worldDel.buffer,
-      delegationRecordWorld: worldDel.record,
-      delegationMetadataWorld: worldDel.metadata,
-      world,
-      bufferMarket: marketDel.buffer,
-      delegationRecordMarket: marketDel.record,
-      delegationMetadataMarket: marketDel.metadata,
-      market,
-      bufferPrices: pricesDel.buffer,
-      delegationRecordPrices: pricesDel.record,
-      delegationMetadataPrices: pricesDel.metadata,
-      prices,
-      bufferPresence: presenceDel.buffer,
-      delegationRecordPresence: presenceDel.record,
-      delegationMetadataPresence: presenceDel.metadata,
-      presence,
+    .accountsPartial({
+      admin: admin.publicKey,
+      vault: at.vault,
+      bufferSeason: season.buffer,
+      delegationRecordSeason: season.record,
+      delegationMetadataSeason: season.metadata,
+      season: at.season,
+      bufferWorld: world.buffer,
+      delegationRecordWorld: world.record,
+      delegationMetadataWorld: world.metadata,
+      world: at.world,
+      bufferMarket: market.buffer,
+      delegationRecordMarket: market.record,
+      delegationMetadataMarket: market.metadata,
+      market: at.market,
+      bufferPrices: prices.buffer,
+      delegationRecordPrices: prices.record,
+      delegationMetadataPrices: prices.metadata,
+      prices: at.prices,
+      bufferPresence: presence.buffer,
+      delegationRecordPresence: presence.record,
+      delegationMetadataPresence: presence.metadata,
+      presence: at.presence,
       validator: VALIDATOR,
       ownerProgram: PROGRAM_ID,
       delegationProgram: DELEGATION,
       systemProgram: SystemProgram.programId,
     })
     .rpc();
-  }
-  console.log("shared accounts created and delegated");
+  say("shared accounts delegated to the rollup");
+}
 
-  const rollup = process.env.ER_URL;
-  if (!rollup) {
-    console.log("ER_URL is unset. Permissions and start_season stay for the rollup call.");
+async function setPermissions(er: Game, admin: ReturnType<typeof adminKeypair>, at: Shared): Promise<void> {
+  if (await er.provider.connection.getAccountInfo(permissionPda(at.season))) {
+    say("permissions already set");
     return;
   }
-  const er = new Program(idl, providerFor(rollup, wallet));
-  const permission = (account: PublicKey) => pda([text("permission:"), account.toBytes()], PERMISSION);
   await er.methods
     .setPermissionsShared()
     .preInstructions([budget()])
-    .accounts({
-      admin,
-      season,
-      seasonPermission: permission(season),
-      world,
-      worldPermission: permission(world),
-      market,
-      marketPermission: permission(market),
-      prices,
-      pricesPermission: permission(prices),
-      presence,
-      presencePermission: permission(presence),
+    .accountsPartial({
+      admin: admin.publicKey,
+      season: at.season,
+      seasonPermission: permissionPda(at.season),
+      world: at.world,
+      worldPermission: permissionPda(at.world),
+      market: at.market,
+      marketPermission: permissionPda(at.market),
+      prices: at.prices,
+      pricesPermission: permissionPda(at.prices),
+      presence: at.presence,
+      presencePermission: permissionPda(at.presence),
       permissionProgram: PERMISSION,
       ephemeralVault: EPHEMERAL_VAULT,
       magicProgram: MAGIC,
     })
     .rpc();
+  say("permissions set");
+}
+
+/** Demo mode must be chosen before the season opens: the clock reads it at the start. */
+async function openSeason(er: Game, admin: ReturnType<typeof adminKeypair>, at: Shared): Promise<void> {
+  const state = (await er.account.season.fetch(at.season)) as { seasonNumber: { toString(): string } };
+  if (state.seasonNumber.toString() !== "0") {
+    say(`season ${state.seasonNumber.toString()} is already open; start_season skipped`);
+    return;
+  }
+  if (process.env.SUNHOARD_DEMO === "1") {
+    await er.methods.setDemoMode(1).accountsPartial({ admin: admin.publicKey, season: at.season }).rpc();
+    say("demo mode on: short phases and labelled demo grants");
+  }
   await er.methods
     .startSeason()
-    .accounts({
-      admin,
-      season,
-      world,
+    .accountsPartial({
+      admin: admin.publicKey,
+      season: at.season,
+      world: at.world,
       oracleQueue: QUEUE,
-      programIdentity: pda([text("identity")]),
+      programIdentity: at.identity,
       vrfProgram: VRF,
       slotHashes: SLOT_HASHES,
       systemProgram: SystemProgram.programId,
     })
     .rpc();
-  console.log("permissions set and the salt requested. The callback opens season 1.");
+  say("the salt is requested; its callback opens season 1");
+  say("next: node --experimental-strip-types scripts/admin.ts schedule");
 }
 
-main().catch((err: unknown) => {
-  console.error(err instanceof Error ? err.message : err);
-  process.exit(1);
+run(async () => {
+  const admin = adminKeypair();
+  const at = shared();
+  const base = baseGame(admin);
+  await createShared(base, admin, at);
+  await delegateShared(base, admin, at);
+  const er = await rollupGame(admin);
+  await setPermissions(er, admin, at);
+  await openSeason(er, admin, at);
 });

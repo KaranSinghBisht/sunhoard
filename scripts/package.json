@@ -2,8 +2,13 @@
   "name": "sunhoard-scripts",
   "private": true,
   "type": "module",
+  "scripts": {
+    "check": "node --experimental-strip-types admin.ts check"
+  },
   "dependencies": {
-    "@coral-xyz/anchor": "1.0.2",
-    "@solana/web3.js": "1.98.4"
+    "@coral-xyz/anchor": "0.32.1",
+    "@magicblock-labs/ephemeral-rollups-sdk": "0.17.3",
+    "@solana/web3.js": "1.98.4",
+    "tweetnacl": "1.0.3"
   }
 }
