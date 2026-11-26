@@ -442,7 +442,8 @@ export async function strikeIx(
   glints: string,
 ): Promise<TransactionInstruction> {
   return program.methods
-    .strike(slot, fodder, new BN(glints))
+    // `fodder` is `bytes` in the IDL; Anchor's coder takes a Buffer there, not an array.
+    .strike(slot, Buffer.from(fodder), new BN(glints))
     .accountsPartial({
       ...sessionAccounts(payer, owner, sessionToken),
       inventory: ownedPda("inventory", owner),

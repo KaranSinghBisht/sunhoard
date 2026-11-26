@@ -1,7 +1,7 @@
-import { Connection } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 import { arenaPhase } from "../src/chain/arenaView";
-import { openProgram } from "../src/chain/program";
+import { openProgram, strikeIx } from "../src/chain/program";
 import { readPack } from "../src/chain/watch";
 import { useHud } from "../src/ui/store";
 
@@ -26,6 +26,17 @@ describe("reading accounts off the rollup", () => {
     const waiting = blank(program, "arena", 4_000);
     waiting[8 + modeOffset(program)] = 1;
     expect(arenaPhase(program, waiting).waiting).toBe(true);
+  });
+});
+
+describe("building instructions", () => {
+  it("encodes the anvil's fodder list", async () => {
+    const program = openProgram(new Connection("http://127.0.0.1:1"));
+    const who = new PublicKey("J3t6hH4fcyuKbyXyS3iv9t9c9XZzpbDFaHXfVn2JPk2d");
+    const ix = await strikeIx(program, who, who, who, 3, [5, 6], "1000");
+    // discriminator, slot, a length-prefixed fodder list, then the Glints.
+    expect(ix.data.length).toBe(8 + 1 + 4 + 2 + 8);
+    expect(Array.from(ix.data.subarray(13, 15))).toEqual([5, 6]);
   });
 });
 

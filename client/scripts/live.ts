@@ -39,6 +39,7 @@ import {
   leaveRoom,
   listItem,
   playAction,
+  strikeAnvil,
   postMove,
   thawShell,
 } from "../src/chain/play";
@@ -263,6 +264,21 @@ async function fair(keeper: Keeper): Promise<void> {
   say(`purse ${String(purse?.glints)} · pot ${String(season?.pot)} · burned ${String(season?.burned)} · pack ${await wood(keeper)}`);
 }
 
+/** The anvil: `LIVE_SLOT=5 LIVE_FODDER=6,7 LIVE_GLINTS=1000 corepack yarn live strike`. */
+async function strike(keeper: Keeper): Promise<void> {
+  const { rollup, session, wallet, link } = keeper;
+  const slot = Number(process.env.LIVE_SLOT ?? "0");
+  const fodder = (process.env.LIVE_FODDER ?? "").split(",").filter(Boolean).map(Number);
+  const before = await decoded(keeper, "inventory", ownedPda("inventory", wallet.publicKey));
+  say(`before: rarity ${String((before?.slots as Array<Record<string, unknown>>)[slot].rarity)}`);
+  await strikeAnvil(rollup, session.signer, wallet.publicKey, session.token, link, slot, fodder, process.env.LIVE_GLINTS ?? "0");
+  await pause(3000);
+  const after = await decoded(keeper, "inventory", ownedPda("inventory", wallet.publicKey));
+  const item = (after?.slots as Array<Record<string, unknown>>)[slot];
+  const player = await decoded(keeper, "player", ownedPda("player", wallet.publicKey));
+  say(`after: kind ${String(item.kind)} rarity ${String(item.rarity)} flags ${String(item.flags)} · heat ${JSON.stringify(player?.heat)}`);
+}
+
 /** Sends one instruction with preflight on and prints the rollup's own refusal. A debugging aid. */
 async function raw(keeper: Keeper): Promise<void> {
   const { rollup, session, wallet } = keeper;
@@ -275,7 +291,7 @@ async function raw(keeper: Keeper): Promise<void> {
   say(typeof sim === "string" ? sim.slice(0, 600) : JSON.stringify(sim.value).slice(0, 1500));
 }
 
-const STEPS: Record<string, (keeper: Keeper) => Promise<void>> = { enter, gather, thaw, cellar, crater, claim, act, fair, raw };
+const STEPS: Record<string, (keeper: Keeper) => Promise<void>> = { enter, gather, thaw, cellar, crater, claim, act, fair, strike, raw };
 
 async function main(): Promise<void> {
   const step = process.argv[2] ?? "enter";
