@@ -164,7 +164,8 @@
               },
               {
                 "kind": "account",
-                "path": "village"
+                "path": "player.owner",
+                "account": "Player"
               }
             ]
           }
@@ -182,25 +183,25 @@
         },
         {
           "name": "nonce",
-          "type": "u8"
+          "type": "u64"
         }
       ]
     },
     {
-      "name": "buy",
+      "name": "buy_quoted",
       "docs": [
         "Buys a listing: both purses, the item and the Hearth Penny split move",
         "atomically."
       ],
       "discriminator": [
-        102,
-        6,
-        61,
-        18,
-        1,
-        218,
-        235,
-        234
+        161,
+        252,
+        8,
+        255,
+        97,
+        117,
+        202,
+        66
       ],
       "accounts": [
         {
@@ -333,23 +334,31 @@
         {
           "name": "listing",
           "type": "u8"
+        },
+        {
+          "name": "revision",
+          "type": "u64"
+        },
+        {
+          "name": "expected_price",
+          "type": "u64"
         }
       ]
     },
     {
-      "name": "cancel",
+      "name": "cancel_quoted",
       "docs": [
         "Takes an unsold listing back. The deposit stays burned."
       ],
       "discriminator": [
-        232,
-        219,
-        223,
-        41,
-        219,
-        236,
-        220,
-        190
+        93,
+        234,
+        0,
+        130,
+        202,
+        190,
+        224,
+        231
       ],
       "accounts": [
         {
@@ -435,6 +444,10 @@
         {
           "name": "listing",
           "type": "u8"
+        },
+        {
+          "name": "revision",
+          "type": "u64"
         }
       ]
     },
@@ -801,6 +814,134 @@
       "args": []
     },
     {
+      "name": "claim_glints",
+      "docs": [
+        "Collects the wallet's Glint entitlement into its private rollup purse."
+      ],
+      "discriminator": [
+        160,
+        1,
+        82,
+        67,
+        195,
+        113,
+        97,
+        72
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "signer": true
+        },
+        {
+          "name": "player",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player.owner",
+                "account": "Player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "purse",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  117,
+                  114,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player.owner",
+                "account": "Player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "season",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "payout",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  97,
+                  121,
+                  111,
+                  117,
+                  116
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        }
+      ],
+      "args": [
+        {
+          "name": "season_number",
+          "type": "u32"
+        }
+      ]
+    },
+    {
       "name": "collect",
       "docs": [
         "Settles villager output into the pack."
@@ -1018,6 +1159,23 @@
           }
         },
         {
+          "name": "world",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  111,
+                  114,
+                  108,
+                  100
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "session_token",
           "optional": true
         }
@@ -1136,6 +1294,25 @@
                   114,
                   108,
                   100
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "season",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  97,
+                  115,
+                  111,
+                  110
                 ]
               }
             ]
@@ -4014,6 +4191,7 @@
         },
         {
           "name": "season",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -7465,6 +7643,37 @@
           }
         },
         {
+          "name": "payout",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  97,
+                  121,
+                  111,
+                  117,
+                  116
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "oracle_queue",
           "writable": true
         },
@@ -8282,6 +8491,21 @@
       ]
     }
   ],
+  "events": [
+    {
+      "name": "ThawReceipt",
+      "discriminator": [
+        178,
+        37,
+        220,
+        81,
+        48,
+        242,
+        141,
+        237
+      ]
+    }
+  ],
   "errors": [
     {
       "code": 6000,
@@ -8307,6 +8531,16 @@
       "code": 6004,
       "name": "SunFree",
       "msg": "Old Gloam has fallen. The sun is free."
+    },
+    {
+      "code": 6005,
+      "name": "ChangedListing",
+      "msg": "That listing changed or expired. Refresh the Coldfair."
+    },
+    {
+      "code": 6006,
+      "name": "LostSeal",
+      "msg": "This legacy shell has lost its seal. No thaw fee was charged."
     }
   ],
   "types": [
@@ -8469,7 +8703,7 @@
             "type": "u8"
           },
           {
-            "name": "_pad_mid",
+            "name": "raid_age",
             "type": {
               "array": [
                 "u8",
@@ -8486,13 +8720,8 @@
             }
           },
           {
-            "name": "_pad_player",
-            "type": {
-              "array": [
-                "u8",
-                4
-              ]
-            }
+            "name": "raid_season",
+            "type": "u32"
           },
           {
             "name": "monsters",
@@ -8568,11 +8797,15 @@
             "type": "u8"
           },
           {
+            "name": "raid_cleared",
+            "type": "u8"
+          },
+          {
             "name": "_pad_lair",
             "type": {
               "array": [
                 "u8",
-                3
+                2
               ]
             }
           },
@@ -8669,6 +8902,9 @@
           },
           {
             "name": "age_secs",
+            "docs": [
+              "Wallet age during combat; Glint entitlement once GLINT_AWARDS is set."
+            ],
             "type": "u64"
           },
           {
@@ -8676,7 +8912,10 @@
             "type": "u8"
           },
           {
-            "name": "_pad",
+            "name": "frozen_age",
+            "docs": [
+              "Original age when the entitlement is written."
+            ],
             "type": {
               "array": [
                 "u8",
@@ -8943,8 +9182,8 @@
             "type": "u64"
           },
           {
-            "name": "listed_at",
-            "type": "i64"
+            "name": "revision",
+            "type": "u64"
           },
           {
             "name": "expires_at",
@@ -9074,9 +9313,16 @@
             "type": {
               "array": [
                 "u8",
-                7
+                3
               ]
             }
+          },
+          {
+            "name": "claim_until",
+            "docs": [
+              "Exclusive Unix deadline. Zero identifies a legacy record."
+            ],
+            "type": "u32"
           },
           {
             "name": "rows",
@@ -9286,9 +9532,13 @@
             "type": {
               "array": [
                 "u8",
-                6
+                2
               ]
             }
+          },
+          {
+            "name": "cleared_season",
+            "type": "u32"
           },
           {
             "name": "heat_at",
@@ -9420,11 +9670,15 @@
             "type": "u8"
           },
           {
+            "name": "escrow_slot_plus_one",
+            "type": "u8"
+          },
+          {
             "name": "_pad",
             "type": {
               "array": [
                 "u8",
-                7
+                6
               ]
             }
           }
@@ -9653,11 +9907,20 @@
             "type": "u8"
           },
           {
+            "name": "kill_pot_low",
+            "type": {
+              "array": [
+                "u8",
+                4
+              ]
+            }
+          },
+          {
             "name": "_pad",
             "type": {
               "array": [
                 "u8",
-                5
+                1
               ]
             }
           },
@@ -9671,7 +9934,7 @@
             }
           },
           {
-            "name": "_pad_name",
+            "name": "kill_pot_high",
             "type": {
               "array": [
                 "u8",
@@ -9764,6 +10027,56 @@
                 2
               ]
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ThawReceipt",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "shell_id",
+            "type": "u64"
+          },
+          {
+            "name": "commitment",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "key",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "dust",
+            "type": "u64"
+          },
+          {
+            "name": "blocks",
+            "type": "u8"
+          },
+          {
+            "name": "shell_size",
+            "type": "u8"
+          },
+          {
+            "name": "demo",
+            "type": "bool"
+          },
+          {
+            "name": "refund",
+            "type": "u64"
           }
         ]
       }

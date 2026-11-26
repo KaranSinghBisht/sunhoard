@@ -710,3 +710,28 @@ button.small {
     display: none;
   }
 }
+
+/* Keep the entire arena visible while opening a wallet or inspecting the pack. */
+.app { align-content: start; padding-top: clamp(12px, 4vh, 42px); }
+.frame { width: min(var(--stage-w), calc(100vw - 24px)); }
+.stage canvas { max-width: 100%; height: auto !important; }
+.hud, .actions, .gate { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.actions, .back-title { justify-self: start; }
+.gate { position: static; transform: none; width: 100%; min-width: 0; max-width: 100%; margin-top: 8px; }
+.quest, .quest.narrow { position: static; width: 100%; }
+.frame > .panel { max-width: 100%; }
+.guide { place-items: safe center; }
+.touch-controls { display: none; }
+@media (pointer: coarse) {
+  .touch-controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .touch-controls button { min-width: 44px; min-height: 44px; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .dpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+  .dpad button:first-child { grid-column: 2; }
+  .dpad button:nth-child(2) { grid-column: 1; }
+}
+@media (max-width: 760px) {
+  .hud { min-width: 0; }
+  .chip.pot { display: inline-flex; }
+  .room-note { width: max-content; max-width: 98%; white-space: normal; bottom: 4px; padding: 2px 6px; }
+  .gate .wallet-adapter-dropdown { max-width: 100%; }
+}

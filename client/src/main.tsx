@@ -1,30 +1,24 @@
-import "./polyfills";
-import "@solana/wallet-adapter-react-ui/styles.css";
-import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
-import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import { PhantomWalletAdapter, SolflareWalletAdapter } from "@solana/wallet-adapter-wallets";
-import { StrictMode, useMemo } from "react";
+import { lazy, Suspense, useState } from "react";
 import { createRoot } from "react-dom/client";
-import App from "./App";
-import { BASE_RPC } from "./chain/config";
-import { GuestWalletAdapter } from "./chain/guestWallet";
+import { uiText } from "./content/text";
+import { Guide } from "./ui/Guide";
+import { beginTale, firstVisit, useTale } from "./game/story/tale";
 import "./styles.css";
 
-function Root() {
-  const wallets = useMemo(() => [new PhantomWalletAdapter(), new SolflareWalletAdapter(), new GuestWalletAdapter()], []);
-  return (
-    <ConnectionProvider endpoint={BASE_RPC}>
-      <WalletProvider wallets={wallets} autoConnect>
-        <WalletModalProvider>
-          <App />
-        </WalletModalProvider>
-      </WalletProvider>
-    </ConnectionProvider>
-  );
-}
+const Live = lazy(() => import("./LiveRoot"));
+const Practice = lazy(() => import("./ui/Practice"));
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <Root />
-  </StrictMode>,
-);
+function Root() {
+  const [mode, setMode] = useState<"title" | "practice" | "live">("title");
+  const exit = () => setMode("title");
+  function begin(retell: boolean) {
+    if (retell || (firstVisit() && useTale.getState().arrivals === 0)) beginTale();
+    setMode("live");
+  }
+  return <Suspense fallback={<main className="app" role="status">{uiText("gameLoading")}</main>}>
+    {mode === "title" && <Guide onBegin={begin} canRetell onPractice={() => setMode("practice")} />}
+    {mode === "practice" && <Practice onExit={exit} />}
+    {mode === "live" && <Live onExit={exit} />}
+  </Suspense>;
+}
+createRoot(document.getElementById("root")!).render(<Root />);

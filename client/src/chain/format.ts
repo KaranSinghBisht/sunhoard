@@ -24,12 +24,13 @@ const ADDRESS = /[1-9A-HJ-NP-Za-km-z]{32,}/;
 /** A line safe to show a player: the program's own message, a known refusal, or a plain fallback. */
 export function playerMessage(err: unknown): string {
   const raw = err instanceof Error ? err.message : "";
+  if (/https?:|wss?:|token=|authorization|bearer /i.test(raw)) return uiText("rejected");
   const said = /Error Message: ([^\n]+?\.)(\s|$)/.exec(raw);
   if (said) return said[1];
   const line = raw.split("\n")[0] ?? "";
   if (/reject|denied|declin|cancel/i.test(line)) return uiText("declined");
   const plain = line.length > 0 && line.length <= PLAIN_LIMIT && !ADDRESS.test(line) && !line.includes("0x");
   if (plain) return line;
-  log(`hidden from the player: ${line.slice(0, 200)}`);
+  log("RPC error withheld");
   return uiText("rejected");
 }

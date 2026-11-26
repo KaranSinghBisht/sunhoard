@@ -11,16 +11,18 @@ export function arenaPhase(program: Program, data: Buffer): {
   fight: Fight | null;
   lair: Lair | null;
   waiting: boolean;
+  scene: "overworld" | "cellar" | "lair" | null;
 } {
   const arena = decode(program, data);
   const mode = arena ? asNumber(field(arena, "mode")) : null;
   if (mode === MODE_FIGHT) {
-    return { fight: fightFromDecoded(arena), lair: null, waiting: false };
+    return { scene: "cellar", fight: fightFromDecoded(arena), lair: null, waiting: false };
   }
   if (mode === MODE_LAIR) {
-    return { fight: null, lair: lairFromDecoded(arena), waiting: false };
+    return { scene: "lair", fight: null, lair: lairFromDecoded(arena), waiting: false };
   }
-  return { fight: null, lair: null, waiting: mode === 1 };
+  const scene = mode === 1 && arena ? (asNumber(arena.lair) === 1 ? "lair" : "cellar") : mode === 0 ? "overworld" : null;
+  return { scene, fight: null, lair: null, waiting: mode === 1 };
 }
 
 export function fightFromAccount(program: Program, data: Buffer): Fight | null {

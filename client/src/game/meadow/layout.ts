@@ -2,6 +2,8 @@
 //   #  birchwood (solid, filled with trees)     .  open snow field
 //   =  the road                                  ,  trodden ground (camp, yards)
 //   ~  the frozen pond (solid)
+import { GATHER_TILES } from "../../gen/economy";
+
 const ROWS_TEXT = [
   "############################################################",
   "############################################################",
@@ -54,8 +56,7 @@ export const MAP_W = COLS * TILE;
 export const MAP_H = ROWS * TILE;
 
 /** The birch the keeper chops: its trunk stands on this tile. */
-export const BIRCH_COL = 23;
-export const BIRCH_ROW = 14;
+export const [BIRCH_COL, BIRCH_ROW] = GATHER_TILES[0];
 export const TREE_X = BIRCH_COL * TILE + 8;
 export const TREE_Y = (BIRCH_ROW + 1) * TILE;
 export const START_X = 22 * TILE + 8;

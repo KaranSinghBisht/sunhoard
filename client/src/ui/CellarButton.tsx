@@ -4,9 +4,8 @@ import { getLive } from "../chain/live";
 import { advanceRoom, aimRoom, enterRoom, leaveRoom } from "../chain/play";
 import { uiText } from "../content/text";
 import { onDoor } from "../game/bridge";
-import { onFightChange, onIntent } from "../game/fightFeed";
-import { aimPractice, practising, startPractice, stopPractice } from "../game/practice";
-import { showScene } from "../game/stage";
+import { onFightChange, onIntent, readChainFight } from "../game/fightFeed";
+import { useStage } from "../game/stage";
 import type { Fight } from "../shared/fight";
 import { useHud } from "./store";
 
@@ -18,17 +17,14 @@ function roomCleared(fight: Fight | null): boolean {
 
 export function CellarButton() {
   const busy = useHud((state) => state.busy);
-  const [inside, setInside] = useState(false);
-  const [cleared, setCleared] = useState(false);
-  const [room, setRoom] = useState(1);
+  const scene = useStage(state => state.scene);
+  const inside = scene === "cellar";
+  const [cleared, setCleared] = useState(() => roomCleared(readChainFight().fight));
+  const [room, setRoom] = useState(() => readChainFight().fight?.room ?? 1);
   const knock = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     onIntent((intent) => {
-      if (practising()) {
-        aimPractice(intent);
-        return;
-      }
       const live = getLive();
       if (!live) return;
       void aimRoom(
@@ -41,8 +37,9 @@ export function CellarButton() {
         intent.dy,
         intent.attack ? 1 : 0,
         intent.dash ? 1 : 0,
-      ).catch((err: unknown) => useHud.getState().setNote(playerMessage(err)));
+      ).catch((err: unknown) => getLive() === live && useHud.getState().setNote(playerMessage(err)));
     });
+    return () => onIntent(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -53,47 +50,28 @@ export function CellarButton() {
     return stop;
   }, []);
 
-  /** With no session there is no chain room to enter, so open the local practice room and say so. */
-  function practise(): void {
-    if (inside) {
-      stopPractice();
-      showScene("overworld");
-      useHud.getState().setNote("");
-    } else {
-      startPractice();
-      showScene("cellar");
-      useHud.getState().setNote(uiText("practiceNote"));
-    }
-    setInside(!inside);
-  }
-
   async function go(): Promise<void> {
     const live = getLive();
-    if (!live || practising()) {
-      practise();
-      return;
-    }
+    if (!live) return;
     useHud.getState().setBusy(true);
     try {
       if (inside) {
         if (cleared && room < 6) {
           await advanceRoom(live.rollup, live.session.signer, live.owner, live.session.token, live.link);
-          setCleared(false);
+
         } else {
           await leaveRoom(live.rollup, live.session.signer, live.owner, live.session.token, live.link);
-          showScene("overworld");
-          setInside(false);
-          setCleared(false);
+
+
         }
       } else {
         await enterRoom(live.rollup, live.session.signer, live.owner, live.session.token, live.link);
-        showScene("cellar");
-        setInside(true);
+
       }
     } catch (err) {
-      useHud.getState().setNote(playerMessage(err));
+      if (getLive() === live) useHud.getState().setNote(playerMessage(err));
     } finally {
-      useHud.getState().setBusy(false);
+      if (getLive() === live) useHud.getState().setBusy(false);
     }
   }
 
@@ -110,7 +88,7 @@ export function CellarButton() {
   }, []);
 
   return (
-    <button type="button" disabled={busy} onClick={() => void go()}>
+    <button type="button" disabled={busy || scene === "lair"} onClick={() => void go()}>
       {inside ? (cleared && room < 6 ? uiText("nextRoom") : uiText("leave")) : uiText("cellar")}
     </button>
   );

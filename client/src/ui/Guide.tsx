@@ -13,7 +13,7 @@ const KEYS: Array<[key: UiKey, does: UiKey]> = [
  * `onBegin(true)` plays the opening and the first-night walk; a first visit always gets them.
  * `canRetell` is false while the cellar is on the canvas, because the opening is told over the meadow.
  */
-export function Guide({ onBegin, canRetell }: { onBegin: (retell: boolean) => void; canRetell: boolean }) {
+export function Guide({ onBegin, canRetell, onPractice }: { onBegin: (retell: boolean) => void; canRetell: boolean; onPractice?: () => void }) {
   return (
     <section className="guide">
       <div className="card">
@@ -33,8 +33,9 @@ export function Guide({ onBegin, canRetell }: { onBegin: (retell: boolean) => vo
           ))}
         </dl>
         <button type="button" className="begin" onClick={() => onBegin(false)} autoFocus>
-          {uiText("begin")}
+          {uiText(onPractice ? "playLive" : "begin")}
         </button>
+        {onPractice && <button type="button" className="quiet" onClick={onPractice}>{uiText("tryPractice")}</button>}
         {firstVisit() || !canRetell ? null : (
           <button type="button" className="quiet" onClick={() => onBegin(true)}>
             {uiText("taleAgain")}

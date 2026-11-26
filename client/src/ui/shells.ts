@@ -1,3 +1,4 @@
+import { THAW_FEE_HUNDREDTHS } from "../gen/economy";
 import { create } from "zustand";
 
 export interface ShellView {
@@ -10,10 +11,10 @@ export interface ShellView {
 }
 
 /** The Thawery's fee by shell size, in Glint hundredths: the table in `logic/seal.rs`. */
-const THAW_FEES = [500n, 1200n, 3000n, 0n, 0n];
+
 
 export function thawFee(size: number): bigint {
-  return THAW_FEES[size] ?? 0n;
+  return BigInt(THAW_FEE_HUNDREDTHS[size] ?? 0);
 }
 
 interface ShellState {

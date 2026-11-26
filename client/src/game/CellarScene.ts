@@ -1,3 +1,4 @@
+import { pressed, textInput } from "./touch";
 import Phaser from "phaser";
 import { playMusic, playSfx } from "../art/sound";
 import { log } from "../chain/log";
@@ -70,7 +71,7 @@ export class CellarScene extends Phaser.Scene {
     );
     this.bars = this.add.graphics().setDepth(HUD_DEPTH);
     this.night = new Night(this, sconces().map((spot) => ({ ...spot, radius: 54, thaw: 0 })), NIGHT_BELOW);
-    tell({ kind: "entered" });
+    if (!practising()) tell({ kind: "entered" });
     this.cameras.main.startFollow(this.keeper, true, 0.2, 0.2);
     this.cursors = this.input.keyboard!.createCursorKeys();
     const add = this.input.keyboard!.addKey.bind(this.input.keyboard);
@@ -130,7 +131,7 @@ export class CellarScene extends Phaser.Scene {
     if (view.player.hp < this.lastKeeperHp) playSfx("hit", 0.4);
     this.lastKeeperHp = view.player.hp;
 
-    if (cleared(view)) tell({ kind: "cleared" });
+    if (!practising() && readChainFight().fight && cleared(readChainFight().fight!)) tell({ kind: "cleared" });
     const ease = Math.min(1, delta / 70);
     const moving = intent.dx !== 0 || intent.dy !== 0;
     glide(this.keeper, view.player, ease);
@@ -216,13 +217,14 @@ export class CellarScene extends Phaser.Scene {
   }
 
   private intent(): Intent {
+    if (textInput(document.activeElement)) return { dx: 0, dy: 0, attack: false, dash: false };
     let dx = 0;
     let dy = 0;
-    if (this.cursors.left?.isDown || this.keys.a.isDown) dx -= 1;
-    if (this.cursors.right?.isDown || this.keys.d.isDown) dx += 1;
-    if (this.cursors.up?.isDown || this.keys.w.isDown) dy -= 1;
-    if (this.cursors.down?.isDown || this.keys.s.isDown) dy += 1;
-    return { dx, dy, attack: Boolean(this.cursors.space?.isDown), dash: this.keys.shift.isDown };
+    if (pressed("left") || this.cursors.left?.isDown || this.keys.a.isDown) dx -= 1;
+    if (pressed("right") || this.cursors.right?.isDown || this.keys.d.isDown) dx += 1;
+    if (pressed("up") || this.cursors.up?.isDown || this.keys.w.isDown) dy -= 1;
+    if (pressed("down") || this.cursors.down?.isDown || this.keys.s.isDown) dy += 1;
+    return { dx, dy, attack: pressed("use") || Boolean(this.cursors.space?.isDown), dash: pressed("dash") || this.keys.shift.isDown };
   }
 }
 

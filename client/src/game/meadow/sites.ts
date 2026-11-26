@@ -1,6 +1,7 @@
 // The hand-placed things: the camp, the cottage, the igloos, the cave and the lamps.
 // A site names a tile; the sprite's foot sits on the bottom edge of that tile, centred
 // on it (use a half column to centre a wide sprite between two tiles).
+import { GATHER_TILES } from "../../gen/economy";
 import type { KindName } from "./cuts";
 import { BIRCH_COL, BIRCH_ROW, TILE } from "./layout";
 import type { Light } from "./lights";
@@ -21,14 +22,10 @@ export const NELL_COL = 22;
 export const NELL_ROW = 17;
 export const CAVE_COL = 52.5;
 export const CAVE_ROW = 18;
-export const BERRY_COL = 18;
-export const BERRY_ROW = 17;
-export const ROCK_COL = 30;
-export const ROCK_ROW = 18;
-export const COAL_COL = 47;
-export const COAL_ROW = 19;
-export const ORE_COL = 48;
-export const ORE_ROW = 22;
+export const [ROCK_COL, ROCK_ROW] = GATHER_TILES[1];
+export const [COAL_COL, COAL_ROW] = GATHER_TILES[2];
+export const [ORE_COL, ORE_ROW] = GATHER_TILES[3];
+export const [BERRY_COL, BERRY_ROW] = GATHER_TILES[4];
 
 const CAMP: Site[] = [
   site("birch", BIRCH_COL, BIRCH_ROW),

@@ -39,7 +39,7 @@ const CAVE_Y = footY(CAVE_ROW);
 
 export const STEPS: readonly Step[] = [
   { id: "road", text: "questRoad", stand: { x: START_X, y: START_Y }, mark: { x: footX(FIRE_COL), y: footY(FIRE_ROW) - 34 } },
-  { id: "chop", text: "intro2", stand: { x: TREE_X, y: TREE_Y + 10 }, mark: { x: TREE_X, y: TREE_Y - 54 } },
+  { id: "chop", text: "questBirch", stand: { x: TREE_X, y: TREE_Y + 10 }, mark: { x: TREE_X, y: TREE_Y - 54 } },
   { id: "nell", text: "questNell", stand: { x: NELL_X, y: NELL_Y + 12 }, mark: { x: NELL_X, y: NELL_Y - 24 } },
   { id: "cellar", text: "questCellar", stand: { x: CAVE_X, y: CAVE_Y + 8 }, mark: { x: CAVE_X, y: CAVE_Y - 46 } },
   { id: "fight", text: "questFight" },

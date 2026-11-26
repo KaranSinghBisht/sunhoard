@@ -1,3 +1,5 @@
+import { utils } from "@coral-xyz/anchor";
+import { connectionActive, requireCurrent } from "./ownership";
 import { ComputeBudgetProgram, Connection, Keypair, PublicKey, Transaction } from "@solana/web3.js";
 import type { TransactionInstruction } from "@solana/web3.js";
 import { COMPUTE_UNITS } from "./config";
@@ -9,6 +11,7 @@ import { useTxLog } from "./txlog";
 
 export interface SendSigner {
   publicKey: PublicKey;
+  active?(): boolean;
   sign(tx: Transaction): Promise<Transaction>;
 }
 
@@ -31,15 +34,33 @@ export async function sendInstruction(
   rollupEndpoint: string,
 ): Promise<string> {
   const started = performance.now();
-  let signature = "";
+  const active = () => connectionActive(connection) && (payer.active?.() ?? true);
+  const check = () => requireCurrent(active());
+  let row: number | undefined;
+  const elapsed = () => Math.round(performance.now() - started);
   try {
-    signature = await submit(connection, payer, extra, ix, layer);
-    remember(name, signature, started, explorerUrl(signature, layer, rollupEndpoint), true);
+    check();
+    const signed = await signOnce(connection, payer, extra, ix, check);
+    check();
+    const raw = signed.tx.serialize();
+    const signature = utils.bytes.bs58.encode(signed.tx.signature!);
+    row = useTxLog.getState().add({
+      instruction: name, signature, latencyMs: elapsed(), url: explorerUrl(signature, layer, rollupEndpoint),
+      ok: false, status: "pending",
+    });
+    await sendRaw(connection, raw, check);
+    await confirm(connection, signature, signed.lastValidBlockHeight, layer, check);
+    check();
+    useTxLog.getState().settle(row, "confirmed", elapsed());
     return signature;
   } catch (err) {
-    const url = signature ? explorerUrl(signature, layer, rollupEndpoint) : "";
-    remember(name, signature, started, url, false);
-    // A settled error already holds a line fit for the player; do not re-read it as a wallet refusal.
+    if (active()) {
+      if (row === undefined) {
+        useTxLog.getState().add({ instruction: name, signature: "", latencyMs: elapsed(), url: "", ok: false });
+      } else if (err instanceof SettledError) {
+        useTxLog.getState().settle(row, "failed", elapsed());
+      }
+    }
     throw new Error(err instanceof SettledError ? err.message : playerMessage(err));
   }
 }
@@ -59,8 +80,8 @@ async function refusal(connection: Connection, signature: string): Promise<strin
       const said = tx ? ownMessage(tx.meta?.logMessages ?? []) : null;
       if (said) return said;
       if (tx) break;
-    } catch (err) {
-      log(`no logs for a refused transaction: ${err instanceof Error ? err.message.slice(0, 120) : "unknown"}`);
+    } catch {
+      log("Refusal logs unavailable");
     }
     await delay(LOG_WAIT_MS);
   }
@@ -75,40 +96,29 @@ function ownMessage(logs: string[]): string | null {
   return null;
 }
 
-async function submit(
-  connection: Connection,
-  payer: SendSigner,
-  extra: Keypair[],
-  ix: TransactionInstruction,
-  layer: "base" | "rollup",
-): Promise<string> {
-  const signed = await signOnce(connection, payer, extra, ix);
-  const raw = signed.tx.serialize();
-  const signature = await sendRaw(connection, raw);
-  await confirm(connection, signature, signed.lastValidBlockHeight, layer);
-  return signature;
-}
-
 async function signOnce(
   connection: Connection,
   payer: SendSigner,
   extra: Keypair[],
   ix: TransactionInstruction,
+  check: () => void,
 ): Promise<{ tx: Transaction; lastValidBlockHeight: number }> {
   const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
   const tx = new Transaction({ feePayer: payer.publicKey, blockhash, lastValidBlockHeight });
   tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: COMPUTE_UNITS }), ix);
   for (const signer of extra) tx.partialSign(signer);
   try {
+    check();
     return { tx: await payer.sign(tx), lastValidBlockHeight };
   } catch (err) {
     throw new SettledError(playerMessage(err));
   }
 }
 
-async function sendRaw(connection: Connection, raw: Buffer): Promise<string> {
+async function sendRaw(connection: Connection, raw: Buffer, check: () => void): Promise<string> {
   let last = uiText("noAnswer");
   for (let attempt = 0; attempt <= SEND_TRIES; attempt += 1) {
+    check();
     try {
       return await connection.sendRawTransaction(raw, { skipPreflight: true });
     } catch (err) {
@@ -123,10 +133,12 @@ async function confirm(
   signature: string,
   lastValidBlockHeight: number,
   layer: "base" | "rollup",
+  check: () => void,
 ): Promise<void> {
   const deadline = Date.now() + TIMEOUT_MS;
   let polls = 0;
   while (Date.now() < deadline) {
+    check();
     const { value } = await connection.getSignatureStatuses([signature]);
     const status = value[0];
     if (status?.err) throw new SettledError(await refusal(connection, signature));
@@ -136,17 +148,7 @@ async function confirm(
   }
   const height = await connection.getBlockHeight();
   if (height > lastValidBlockHeight) throw new SettledError(uiText("expired"));
-  throw new SettledError(uiText("pending"));
-}
-
-function remember(instruction: string, signature: string, started: number, url: string, ok: boolean): void {
-  useTxLog.getState().add({
-    instruction,
-    signature,
-    latencyMs: Math.round(performance.now() - started),
-    url,
-    ok,
-  });
+  throw new Error(uiText("pending"));
 }
 
 function delay(ms: number): Promise<void> {

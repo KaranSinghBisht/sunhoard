@@ -1,3 +1,4 @@
+import { pressed, textInput } from "./touch";
 import Phaser from "phaser";
 import { playMusic, playSfx, unlockAudio } from "../art/sound";
 import { getLive } from "../chain/live";
@@ -50,6 +51,7 @@ const SHEET_FILES: Record<(typeof SHEET_KEYS)[number], string> = { nature: NATUR
 type Keys = Record<"a" | "d" | "w" | "s", Phaser.Input.Keyboard.Key>;
 
 export class OverworldScene extends Phaser.Scene {
+  private touched = false;
   private keeper!: Phaser.GameObjects.Sprite;
   private shadow!: Phaser.GameObjects.Image;
   private birch?: Phaser.GameObjects.Image;
@@ -124,6 +126,9 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number): void {
+    const using = pressed("use");
+    if (using && !this.touched) this.act();
+    this.touched = using;
     this.mode = this.director.update(time);
     this.arrive();
     const moving = this.mode === "play" ? this.step(delta) : this.walkIn(delta);
@@ -270,10 +275,10 @@ export class OverworldScene extends Phaser.Scene {
     }
     let dx = 0;
     let dy = 0;
-    if (this.cursors.left?.isDown || this.keys.a.isDown) dx -= 1;
-    if (this.cursors.right?.isDown || this.keys.d.isDown) dx += 1;
-    if (this.cursors.up?.isDown || this.keys.w.isDown) dy -= 1;
-    if (this.cursors.down?.isDown || this.keys.s.isDown) dy += 1;
+    if (pressed("left") || this.cursors.left?.isDown || this.keys.a.isDown) dx -= 1;
+    if (pressed("right") || this.cursors.right?.isDown || this.keys.d.isDown) dx += 1;
+    if (pressed("up") || this.cursors.up?.isDown || this.keys.w.isDown) dy -= 1;
+    if (pressed("down") || this.cursors.down?.isDown || this.keys.s.isDown) dy += 1;
     if (dx === 0 && dy === 0) return false;
     this.column = keeperColumn(dx, dy, this.column);
     this.facing = facingOf(dx, dy);
@@ -291,8 +296,8 @@ export class OverworldScene extends Phaser.Scene {
     return this.x !== startX || this.y !== startY;
   }
 
-  private act(event: KeyboardEvent): void {
-    if (event.repeat || this.mode === "tour") return;
+  private act(event?: KeyboardEvent): void {
+    if (event?.repeat || textInput(event?.target ?? null) || this.mode === "tour") return;
     if (this.mode === "cinema") return nextBeat();
     if (this.mode === "talk") return nextLine();
     const use = useAt(Math.round(this.x), Math.round(this.y));
@@ -307,7 +312,6 @@ export class OverworldScene extends Phaser.Scene {
     }
     playSfx(node >= 1 && node <= 3 ? "mine" : "chop");
     gameBridge().chop({ x: Math.round(this.x), y: Math.round(this.y), nodeX, nodeY, node });
-    tell({ kind: "chopped" });
   }
 }
 

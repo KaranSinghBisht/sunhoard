@@ -22,7 +22,8 @@ import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { authToken, signWithSecret } from "../src/chain/auth";
-import { BASE_RPC, TEE_RPC } from "../src/chain/config";
+import { checkAccountPrivacy, checkCallbackPrivacy } from "./privacy";
+import { BASE_RPC, PROGRAM_ID, TEE_RPC } from "../src/chain/config";
 import { rollupEndpoint } from "../src/chain/explorer";
 import { enterMeadow } from "../src/chain/login";
 import { ownedPda, sharedPda } from "../src/chain/pdas";
@@ -109,9 +110,8 @@ async function open(): Promise<Keeper> {
   const signer = keypairSigner(wallet);
   const walletToken = await enterMeadow(base, wallet.publicKey, signer, signWithSecret(wallet.secretKey), "");
   const session = await createSession(base, signer, wallet.publicKey);
-  const linkToken = await authToken(session.signer.publicKey, signWithSecret(session.signer.secretKey));
   const rollup = new Connection(rollupEndpoint(TEE_RPC, walletToken), "confirmed");
-  return { wallet, rollup, session, link: rollupEndpoint(TEE_RPC, linkToken) };
+  return { wallet, rollup, session, link: "" };
 }
 
 async function decoded(keeper: Keeper, name: string, at: PublicKey): Promise<Record<string, unknown> | null> {
@@ -123,7 +123,7 @@ async function decoded(keeper: Keeper, name: string, at: PublicKey): Promise<Rec
 async function wood(keeper: Keeper): Promise<string> {
   const pack = await decoded(keeper, "inventory", ownedPda("inventory", keeper.wallet.publicKey));
   const slots = (pack?.slots ?? []) as Array<Record<string, unknown>>;
-  return JSON.stringify(slots.slice(0, Number(pack?.count ?? 0)).map((slot) => [slot.kind, slot.count ?? slot.amount]));
+  return JSON.stringify(slots.filter(slot => Number(slot.quantity) > 0).map(slot => [slot.kind, slot.quantity]));
 }
 
 async function enter(keeper: Keeper): Promise<void> {
@@ -142,23 +142,47 @@ async function gather(keeper: Keeper): Promise<void> {
   say(`pack after the chop: ${await wood(keeper)}`);
   for (let tries = 0; tries < 20; tries += 1) {
     const player = await decoded(keeper, "player", ownedPda("player", owner));
-    if ((Number(player?.gatherFlags) & 1) === 0) {
+    if (player && (Number(player.gatherFlags) & 1) === 0) {
       say(`VRF callback landed after ~${tries * 500} ms; pack: ${await wood(keeper)}`);
       return;
     }
     await pause(500);
   }
-  say("FAIL: the gather callback did not arrive in 10 s");
+  throw new CheckFailure("The gather callback did not arrive in 10 s.");
 }
 
-async function stranger(): Promise<void> {
+class CheckFailure extends Error {}
+
+async function stranger(callback: boolean): Promise<void> {
   const nobody = Keypair.generate();
   const token = await authToken(nobody.publicKey, signWithSecret(nobody.secretKey));
   const rollup = new Connection(rollupEndpoint(TEE_RPC, token), "confirmed");
-  for (const name of ["world", "season"] as const) {
-    const info = await rollup.getAccountInfo(sharedPda(name)).catch((err: unknown) => String(err));
-    const seen = info === null ? "hidden (null)" : typeof info === "string" ? `refused (${info.slice(0, 60)})` : `READABLE, ${info.data.length} bytes`;
-    say(`a stranger reads ${name}: ${seen}`);
+  try {
+    await checkAccountPrivacy(async () => {
+      const info = await rollup.getAccountInfo(sharedPda("season"));
+      if (!info?.owner.equals(PROGRAM_ID)) return false;
+      const data = openProgram(rollup).coder.accounts.decode("season", info.data);
+      return Number(data.seasonNumber) > 0;
+    }, async () => (await rollup.getAccountInfo(sharedPda("world"))) !== null);
+    say("Stranger read the public Season and received null for World.");
+    if (!callback) return;
+    const signature = process.env.LIVE_SALT_CALLBACK;
+    if (!signature) throw new CheckFailure("Set LIVE_SALT_CALLBACK to the operator-verified salt callback signature.");
+    await checkCallbackPrivacy(async () => {
+      const result = await rollup.getSignatureStatuses([signature], { searchTransactionHistory: true });
+      const status = result.value[0];
+      return !!status && !status.err && ["confirmed", "finalized"].includes(status.confirmationStatus ?? "");
+    }, async () => (await rollup.getTransaction(signature, {
+      commitment: "confirmed", maxSupportedTransactionVersion: 0,
+    })) !== null);
+    say("Supplied callback has a successful status and its transaction body is hidden from this stranger.");
+  } catch (err) {
+    // Only known local diagnostics are printable. Transport errors can contain the authenticated URL.
+    if (err instanceof CheckFailure) throw err;
+    const safe = ["Public Season control unavailable.", "Private World was visible.",
+      "Callback inclusion could not be confirmed.", "Private callback transaction was visible."];
+    if (err instanceof Error && safe.includes(err.message)) throw new CheckFailure(err.message);
+    throw new CheckFailure("Privacy result inconclusive. The control, decoder or RPC request failed.");
   }
 }
 
@@ -227,7 +251,8 @@ async function crater(keeper: Keeper): Promise<void> {
     }
     const season = await decoded(keeper, "season", sharedPda("season"));
     say(`visit over · total damage ${String(season?.totalDamage)} · phase ${String(season?.phase)} · flags ${String(season?.flags)}`);
-    await leaveCrater(rollup, session.signer, owner, session.token, link).catch((err: unknown) => say(`leave: ${String(err)}`));
+    const arena = await decoded(keeper, "arena", ownedPda("arena", owner));
+    if (Number(arena?.mode) === 3) await leaveCrater(rollup, session.signer, owner, session.token, link);
     if ((Number(season?.flags) & 2) !== 0) return say("Old Gloam has fallen");
   }
 }
@@ -254,7 +279,12 @@ async function fair(keeper: Keeper): Promise<void> {
   if (process.env.LIVE_FAIR === "buy") {
     const seller = new PublicKey(process.env.LIVE_SELLER ?? "");
     const listing = Number(process.env.LIVE_LISTING ?? "0");
-    await buyListing(rollup, session.signer, wallet.publicKey, session.token, link, listing, seller);
+    const revision = process.env.LIVE_REVISION;
+    const price = process.env.LIVE_PRICE;
+    if (!revision || !price || !/^\d+$/.test(revision) || !/^\d+$/.test(price)) {
+      throw new Error("Set LIVE_REVISION and LIVE_PRICE (hundredths) to the displayed quote.");
+    }
+    await buyListing(rollup, session.signer, wallet.publicKey, session.token, link, listing, seller, revision, price);
   } else {
     const slot = Number(process.env.LIVE_SLOT ?? "0");
     await listItem(rollup, session.signer, wallet.publicKey, session.token, link, slot, process.env.LIVE_PRICE ?? "1000");
@@ -287,23 +317,24 @@ async function raw(keeper: Keeper): Promise<void> {
   const { blockhash } = await rollup.getLatestBlockhash();
   const tx = new Transaction({ feePayer: session.signer.publicKey, recentBlockhash: blockhash }).add(ix);
   tx.sign(session.signer);
-  const sim = await rollup.simulateTransaction(tx).catch((err: unknown) => String(err));
-  say(typeof sim === "string" ? sim.slice(0, 600) : JSON.stringify(sim.value).slice(0, 1500));
+  const sim = await rollup.simulateTransaction(tx);
+  if (sim.value.err) throw new CheckFailure("The rollup declined the simulated thaw.");
+  say("The rollup accepted the simulated thaw.");
 }
 
 const STEPS: Record<string, (keeper: Keeper) => Promise<void>> = { enter, gather, thaw, cellar, crater, claim, act, fair, strike, raw };
 
 async function main(): Promise<void> {
   const step = process.argv[2] ?? "enter";
-  if (step === "private") return stranger();
+  if (step === "private" || step === "private-callback") return stranger(step === "private-callback");
   const todo = STEPS[step];
   if (!todo) throw new Error(`unknown step ${step}`);
   const keeper = await open();
   try {
     await todo(keeper);
   } finally {
-    for (const row of useTxLog.getState().rows ?? []) {
-      say(`  ${row.ok ? "ok  " : "FAIL"} ${row.instruction} ${row.latencyMs} ms ${row.signature.slice(0, 16)}`);
+    for (const row of useTxLog.getState().rows) {
+      say(`  ${row.status} ${row.instruction} ${row.latencyMs} ms ${row.signature.slice(0, 16)}`);
     }
   }
 }
@@ -311,7 +342,7 @@ async function main(): Promise<void> {
 main().then(
   () => process.exit(0),
   (err: unknown) => {
-    process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
+    process.stderr.write(`${err instanceof CheckFailure ? err.message : "Live check failed. Check the network, keeper state and command arguments."}\n`);
     process.exit(1);
   },
 );

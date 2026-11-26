@@ -3,12 +3,11 @@ import { explorerUrl, rollupEndpoint } from "../src/chain/explorer";
 import { formatHundredths } from "../src/chain/format";
 
 describe("explorer links", () => {
-  it("encodes the whole rollup url, token included", () => {
+  it("never puts a rollup token in a shareable link", () => {
     const endpoint = rollupEndpoint("https://devnet-tee.magicblock.app", "abc def");
-    const url = explorerUrl("sig123", "rollup", endpoint);
-    expect(url).toContain("cluster=custom");
-    expect(url).toContain(encodeURIComponent(endpoint));
-    expect(url).not.toContain("?token=");
+    expect(new URL(endpoint).searchParams.get("token")).toBe("abc def");
+    // The private rollup's URL is a bearer credential, so a rollup receipt has no public link.
+    expect(explorerUrl("sig123", "rollup", endpoint)).toBe("");
   });
 
   it("links a base transaction to devnet", () => {

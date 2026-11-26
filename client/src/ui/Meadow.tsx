@@ -1,9 +1,9 @@
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Connection } from "@solana/web3.js";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import type { PublicKey } from "@solana/web3.js";
-import { authToken, signWithSecret } from "../chain/auth";
+import { authExpiry, forgetAuth } from "../chain/auth";
 import { TEE_RPC } from "../chain/config";
 import { GUEST_WALLET_NAME, fundGuest } from "../chain/guestWallet";
 import { rollupEndpoint } from "../chain/explorer";
@@ -13,7 +13,11 @@ import { ownedPda } from "../chain/pdas";
 import { inRange, nextPost, type Pace } from "../chain/pace";
 import { chopTree, postMove } from "../chain/play";
 import { openProgram } from "../chain/program";
-import { createSession, openSigner, type LiveSession } from "../chain/session";
+import { createSession, type LiveSession } from "../chain/session";
+import { requireCurrent, scopeConnection, connectionActive } from "../chain/ownership";
+import { resetPlayer } from "./resetPlayer";
+import { tell } from "../game/story/tale";
+import { log } from "../chain/log";
 import { setLive } from "../chain/live";
 import { armChop, pullAccounts, watchAccounts, watchArena } from "../chain/watch";
 import { uiText } from "../content/text";
@@ -61,6 +65,22 @@ export function Meadow({ zoom, gate: gateOpen }: { zoom: number; gate: boolean }
     game.current?.scale.setZoom(zoom);
   }, [zoom]);
 
+  const close = useRef<() => void>(() => undefined);
+  const ownerId = publicKey?.toBase58() ?? "";
+  useLayoutEffect(() => {
+    const release = () => {
+      close.current();
+      forgetAuth(ownerId);
+      play.current = null;
+      resetPlayer();
+    };
+    window.addEventListener("pagehide", release);
+    return () => {
+      window.removeEventListener("pagehide", release);
+      release();
+    };
+  }, [ownerId, connection]);
+
   useEffect(() => {
     setBridge({
       move: (report) => {
@@ -76,56 +96,73 @@ export function Meadow({ zoom, gate: gateOpen }: { zoom: number; gate: boolean }
         void chopAt(current, publicKey, report);
       },
     });
+    return () => setBridge({ move: () => undefined, chop: () => undefined });
   }, [publicKey]);
 
   async function enter() {
-    if (!publicKey || !signTransaction || !signMessage) return;
+    if (!publicKey || !signTransaction || !signMessage || useHud.getState().busy) return;
+    close.current();
+    let closed = false;
+    let expires = Infinity;
+    let timer: number | undefined;
+    const stops: Array<() => Promise<void>> = [];
+    const active = () => !closed && Date.now() < expires;
+    const check = () => requireCurrent(active());
+    const release = () => {
+      closed = true;
+      window.clearTimeout(timer);
+      for (const stop of stops.splice(0)) void stop().catch(() => log("Listener removal failed"));
+      play.current = null;
+    };
+    close.current = release;
     const hud = useHud.getState();
     hud.setBusy(true);
     hud.setNote("");
     try {
-      // Sign-up pays rent for six accounts; say so plainly instead of failing at the first transaction.
       const joined = await connection.getAccountInfo(ownedPda("player", publicKey));
       if (!joined && (await connection.getBalance(publicKey)) < SIGN_UP_LAMPORTS) {
+        check();
         const guest = wallet?.adapter.name === GUEST_WALLET_NAME;
-        if (!guest || !(await fundGuest(connection, publicKey, SIGN_UP_LAMPORTS))) {
+        if (!guest || !(await fundGuest(connection, publicKey, SIGN_UP_LAMPORTS, active))) {
+          check();
           hud.setNote(uiText("needSol"));
           return;
         }
       }
-      const signing = walletSigner(publicKey, signTransaction);
-      const signer = openSigner();
-      const linkToken = await authToken(signer.signer.publicKey, signWithSecret(signer.signer.secretKey));
-      const link = rollupEndpoint(TEE_RPC, linkToken);
+      check();
+      const signing = walletSigner(publicKey, signTransaction, active);
+      const link = "";
       const walletToken = await enterMeadow(connection, publicKey, signing, signMessage, link);
+      check();
       const session = await createSession(connection, signing, publicKey);
+      check();
+      expires = Math.min(session.expiresAt * 1000, authExpiry(ownerId));
+      check();
       const rollup = new Connection(rollupEndpoint(TEE_RPC, walletToken), "confirmed");
-      play.current = {
-        rollup,
-        session,
-        link,
-        owner: publicKey.toBase58(),
-        busy: false,
-        pace: { posted: false, x: 0, y: 0, at: 0 },
-      };
-      setLive({ rollup, session, link, owner: publicKey });
+      scopeConnection(rollup, active);
       const program = openProgram(rollup);
       await pullAccounts(rollup, program, publicKey);
-      const stop = watchAccounts(rollup, program, publicKey);
-      const stopArena = watchArena(rollup, program, publicKey);
+      check();
+      stops.push(watchAccounts(rollup, program, publicKey));
+      stops.push(await watchArena(rollup, program, publicKey));
+      if (!active()) { release(); check(); }
+      play.current = { rollup, session, link, owner: ownerId, busy: false, pace: { posted: false, x: 0, y: 0, at: 0 } };
+      setLive({ rollup, session, link, owner: publicKey });
       hud.setSession(true);
-      window.addEventListener(
-        "pagehide",
-        () => {
-          void stop();
-          void stopArena();
-        },
-        { once: true },
-      );
+      timer = window.setTimeout(() => {
+        release();
+        forgetAuth(ownerId);
+        resetPlayer();
+        hud.setNote(uiText("sessionLost"));
+      }, Math.max(0, expires - Date.now()));
     } catch (err) {
-      hud.setNote(playerMessage(err));
+      if (!closed) {
+        release();
+        resetPlayer();
+        hud.setNote(playerMessage(err));
+      }
     } finally {
-      hud.setBusy(false);
+      if (close.current === release && !closed) hud.setBusy(false);
     }
   }
 
@@ -173,7 +210,7 @@ async function place(current: Play | null, owner: PublicKey, report: MoveReport)
     current.pace = { posted: true, x: step.x, y: step.y, at: Date.now() };
     return true;
   } catch (err) {
-    useHud.getState().setNote(playerMessage(err));
+    if (connectionActive(current.rollup)) useHud.getState().setNote(playerMessage(err));
     return false;
   } finally {
     current.busy = false;
@@ -192,7 +229,6 @@ async function chopAt(
     return;
   }
   armChop();
-  useHud.getState().setNote(uiText("chopped"));
   try {
     await chopTree(
       current.rollup,
@@ -204,7 +240,11 @@ async function chopAt(
       report.nodeY,
       report.node ?? 0,
     );
+    if (connectionActive(current.rollup)) {
+      useHud.getState().setNote(uiText("chopped"));
+      if (!report.node) tell({ kind: "chopped" });
+    }
   } catch (err) {
-    useHud.getState().setNote(playerMessage(err));
+    if (connectionActive(current.rollup)) useHud.getState().setNote(playerMessage(err));
   }
 }

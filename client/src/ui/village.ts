@@ -25,6 +25,7 @@ interface VillageState {
   beds: number;
   workstations: number;
   bellBusy: boolean;
+  bellUntil: number;
   posts: PostView[];
   villagers: VillagerView[];
   setVillage: (patch: {
@@ -32,6 +33,7 @@ interface VillageState {
     beds: number;
     workstations: number;
     bellBusy: boolean;
+    bellUntil: number;
     posts: PostView[];
     villagers: VillagerView[];
   }) => void;
@@ -42,6 +44,7 @@ export const useVillage = create<VillageState>((set) => ({
   beds: 0,
   workstations: 0,
   bellBusy: false,
+  bellUntil: 0,
   posts: [],
   villagers: [],
   setVillage: (patch) => set(patch),

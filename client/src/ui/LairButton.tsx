@@ -1,39 +1,28 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { playerMessage } from "../chain/format";
 import { getLive } from "../chain/live";
 import { log } from "../chain/log";
 import { aimLair, enterCrater, leaveCrater, scoopSpark } from "../chain/play";
 import { uiText } from "../content/text";
 import { onLairChange, onLairIntent, readChainLair } from "../game/lairFeed";
-import { showScene } from "../game/stage";
+import { useStage } from "../game/stage";
+import { useWorld } from "./world";
 import { useHud } from "./store";
 
 export function LairButton() {
   const busy = useHud((state) => state.busy);
   const sparkNear = useHud((state) => state.sparkNear);
   const sunFree = useHud((state) => state.sunFree);
-  const [inside, setInside] = useState(false);
-  /** True once the chain has shown this visit running; a later empty arena means it ended. */
-  const running = useRef(false);
-  const insideNow = useRef(false);
-
-  function setIn(next: boolean): void {
-    insideNow.current = next;
-    running.current = false;
-    setInside(next);
-  }
-
-  function backToMeadow(note: string): void {
-    showScene("overworld");
-    setIn(false);
-    useHud.getState().setSparkNear(false);
-    if (note) useHud.getState().setNote(note);
-  }
+  const phase = useWorld((state) => state.phase);
+  const scene = useStage(state => state.scene);
+  const inside = scene === "lair";
+  const running = useRef(Boolean(readChainLair().lair));
+  const leaving = useRef(false);
 
   useEffect(() => {
     onLairIntent((intent) => {
       const live = getLive();
-      if (!live || !insideNow.current) return;
+      if (!live || useStage.getState().scene !== "lair") return;
       void aimLair(
         live.rollup,
         live.session.signer,
@@ -44,21 +33,26 @@ export function LairButton() {
         intent.dy,
         intent.attack ? 1 : 0,
         intent.dash ? 1 : 0,
-      ).catch((err: unknown) => useHud.getState().setNote(playerMessage(err)));
+      ).catch((err: unknown) => getLive() === live && useHud.getState().setNote(playerMessage(err)));
     });
+    return () => onLairIntent(() => undefined);
   }, []);
 
   useEffect(() => {
     // The visit ends by itself when its steps run out, the keeper falls or Old Gloam dies.
     const stop = onLairChange((lair) => {
-      if (!insideNow.current) return;
+      if (useStage.getState().scene !== "lair") return;
       if (lair) {
         running.current = true;
         return;
       }
       if (!running.current || readChainLair().waiting) return;
-      backToMeadow(useHud.getState().sunFree ? uiText("sunFree") : uiText("craterOver"));
-      void stopCrank();
+      running.current = false;
+      useHud.getState().setSparkNear(false);
+      if (!leaving.current && getLive()) {
+        useHud.getState().setNote(uiText(useHud.getState().sunFree ? "sunFree" : "craterOver"));
+        void stopCrank();
+      }
     });
     return stop;
   }, []);
@@ -74,20 +68,6 @@ export function LairButton() {
     }
   }
 
-  async function leave(): Promise<void> {
-    const live = getLive();
-    if (!live) return;
-    try {
-      await leaveCrater(live.rollup, live.session.signer, live.owner, live.session.token, live.link);
-      backToMeadow("");
-    } catch (err) {
-      // The chain already closed the visit: nothing holds the keeper in the Crater.
-      const over = running.current && !readChainLair().lair && !readChainLair().waiting;
-      if (over) backToMeadow(uiText("craterOver"));
-      else useHud.getState().setNote(playerMessage(err));
-    }
-  }
-
   async function go(): Promise<void> {
     const live = getLive();
     if (!live) {
@@ -97,16 +77,17 @@ export function LairButton() {
     useHud.getState().setBusy(true);
     try {
       if (inside) {
-        await leave();
+        leaving.current = true;
+        await leaveCrater(live.rollup, live.session.signer, live.owner, live.session.token, live.link);
       } else {
         await enterCrater(live.rollup, live.session.signer, live.owner, live.session.token, live.link);
-        showScene("lair");
-        setIn(true);
+
       }
     } catch (err) {
-      useHud.getState().setNote(playerMessage(err));
+      if (getLive() === live) useHud.getState().setNote(playerMessage(err));
     } finally {
-      useHud.getState().setBusy(false);
+      leaving.current = false;
+      if (getLive() === live) useHud.getState().setBusy(false);
     }
   }
 
@@ -117,9 +98,10 @@ export function LairButton() {
     try {
       await scoopSpark(live.rollup, live.session.signer, live.owner, live.session.token, live.link);
     } catch (err) {
-      useHud.getState().setNote(playerMessage(err));
+      if (getLive() === live) useHud.getState().setNote(playerMessage(err));
     } finally {
-      useHud.getState().setBusy(false);
+      leaving.current = false;
+      if (getLive() === live) useHud.getState().setBusy(false);
     }
   }
 
@@ -127,7 +109,7 @@ export function LairButton() {
     <>
       <button
         type="button"
-        disabled={busy || (sunFree && !inside)}
+        disabled={busy || scene === "cellar" || (sunFree && !inside)}
         title={sunFree && !inside ? uiText("sunFree") : undefined}
         onClick={() => void go()}
       >

@@ -77,15 +77,16 @@ const AIRDROP_WAIT_MS = 20_000;
  * Asks the public devnet faucet to fund a guest key. The faucet is rate-limited
  * and often says no, so the caller falls back to telling the visitor to fund it.
  */
-export async function fundGuest(connection: Connection, key: PublicKey, enough: number): Promise<boolean> {
+export async function fundGuest(connection: Connection, key: PublicKey, enough: number, active = () => true): Promise<boolean> {
   try {
+    if (!active()) return false;
     await connection.requestAirdrop(key, AIRDROP_LAMPORTS);
   } catch (err) {
     log(`the devnet faucet said no: ${err instanceof Error ? err.message.slice(0, 80) : "unknown"}`);
     return false;
   }
   const deadline = Date.now() + AIRDROP_WAIT_MS;
-  while (Date.now() < deadline) {
+  while (active() && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 1500));
     if ((await connection.getBalance(key)) >= enough) return true;
   }

@@ -104,9 +104,9 @@ export async function revealShell(
   sessionToken: PublicKey,
   linkEndpoint: string,
   slot: number,
-): Promise<void> {
+): Promise<string> {
   const reveal = await crackRevealIx(openProgram(rollup), signer.publicKey, owner, sessionToken, slot);
-  await sendInstruction(rollup, keypairSigner(signer), [], reveal, "crack_reveal", "rollup", linkEndpoint);
+  return sendInstruction(rollup, keypairSigner(signer), [], reveal, "crack_reveal", "rollup", linkEndpoint);
 }
 
 export async function thawShell(
@@ -234,8 +234,9 @@ export async function cancelListing(
   sessionToken: PublicKey,
   linkEndpoint: string,
   listing: number,
+  revision: string,
 ): Promise<void> {
-  const ix = await cancelIx(openProgram(rollup), signer.publicKey, owner, sessionToken, listing);
+  const ix = await cancelIx(openProgram(rollup), signer.publicKey, owner, sessionToken, listing, revision);
   await sendInstruction(rollup, keypairSigner(signer), [], ix, "cancel", "rollup", linkEndpoint);
 }
 
@@ -248,8 +249,10 @@ export async function buyListing(
   linkEndpoint: string,
   listing: number,
   seller: PublicKey,
+  revision: string,
+  expectedPrice: string,
 ): Promise<void> {
-  const ix = await buyIx(openProgram(rollup), signer.publicKey, owner, sessionToken, listing, seller);
+  const ix = await buyIx(openProgram(rollup), signer.publicKey, owner, sessionToken, listing, seller, revision, expectedPrice);
   await sendInstruction(rollup, keypairSigner(signer), [], ix, "buy", "rollup", linkEndpoint);
 }
 

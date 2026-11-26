@@ -153,6 +153,7 @@ export async function crackIx(
     .accountsPartial({
       ...sessionAccounts(payer, owner, sessionToken),
       inventory: ownedPda("inventory", owner),
+      world: sharedPda("world"),
       purse: ownedPda("purse", owner),
       season: sharedPda("season"),
     })
@@ -171,6 +172,7 @@ export async function crackRevealIx(
     .accountsPartial({
       ...sessionAccounts(payer, owner, sessionToken),
       inventory: ownedPda("inventory", owner),
+      season: sharedPda("season"),
       purse: ownedPda("purse", owner),
       world: sharedPda("world"),
     })
@@ -243,6 +245,25 @@ export async function exitDungeonIx(
 
 export async function claimIx(program: Program, wallet: PublicKey): Promise<TransactionInstruction> {
   return program.methods.claim().accountsPartial({ wallet, payout: payoutPda(), vault: sharedPda("vault") }).instruction();
+}
+
+/** Collects the wallet's share of the Glint hoard into its private purse, on the rollup. */
+export async function claimGlintsIx(
+  program: Program,
+  payer: PublicKey,
+  owner: PublicKey,
+  sessionToken: PublicKey | null,
+  seasonNumber: number,
+): Promise<TransactionInstruction> {
+  return program.methods
+    .claimGlints(seasonNumber)
+    .accountsPartial({
+      ...sessionAccounts(payer, owner, sessionToken),
+      purse: ownedPda("purse", owner),
+      season: sharedPda("season"),
+      payout: payoutPda(),
+    })
+    .instruction();
 }
 
 export async function nameWyrmIx(
@@ -400,9 +421,10 @@ export async function cancelIx(
   owner: PublicKey,
   sessionToken: PublicKey | null,
   listing: number,
+  revision: string,
 ): Promise<TransactionInstruction> {
   return program.methods
-    .cancel(listing)
+    .cancelQuoted(listing, new BN(revision))
     .accountsPartial({
       ...sessionAccounts(payer, owner, sessionToken),
       inventory: ownedPda("inventory", owner),
@@ -418,9 +440,11 @@ export async function buyIx(
   sessionToken: PublicKey | null,
   listing: number,
   seller: PublicKey,
+  revision: string,
+  expectedPrice: string,
 ): Promise<TransactionInstruction> {
   return program.methods
-    .buy(listing)
+    .buyQuoted(listing, new BN(revision), new BN(expectedPrice))
     .accountsPartial({
       ...sessionAccounts(payer, owner, sessionToken),
       inventory: ownedPda("inventory", owner),

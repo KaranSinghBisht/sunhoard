@@ -21,6 +21,7 @@ export function Quest({ narrow }: { narrow: boolean }) {
   }, [ended]);
 
   const now = STEPS[step];
+  if (narrow && now?.id !== "fight") return null;
   if (!now) {
     if (ended !== "done") return null;
     return (

@@ -22,7 +22,7 @@ describe("reading accounts off the rollup", () => {
 
   it("decodes the arena: an idle one is neither fighting nor waiting", () => {
     const idle = arenaPhase(program, blank(program, "arena", 4_000));
-    expect(idle).toEqual({ fight: null, lair: null, waiting: false });
+    expect(idle).toEqual({ scene: "overworld", fight: null, lair: null, waiting: false });
     const waiting = blank(program, "arena", 4_000);
     waiting[8 + modeOffset(program)] = 1;
     expect(arenaPhase(program, waiting).waiting).toBe(true);

@@ -5,6 +5,8 @@ export interface ListingView {
   id: number;
   seller: string;
   price: string;
+  revision: string;
+  traits: Array<{ id: number; tier: number }>;
   expiresAt: number;
   kind: number;
   quantity: number;

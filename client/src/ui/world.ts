@@ -5,6 +5,8 @@ export interface SlayerView {
   damage: bigint;
   isKiller: boolean;
   clearedT1: boolean;
+  glintAward: bigint;
+  glintsClaimed: boolean;
 }
 
 export interface PresenceView {
@@ -21,6 +23,7 @@ export interface WorldState {
   phase: number;
   phaseStarted: number;
   phaseEnds: number;
+  lastTick: number;
   burned: bigint;
   totalDamage: bigint;
   killer: string;
@@ -46,6 +49,7 @@ export const useWorld = create<WorldState>((set) => ({
   phase: 0,
   phaseStarted: 0,
   phaseEnds: 0,
+  lastTick: 0,
   burned: 0n,
   totalDamage: 0n,
   killer: "",

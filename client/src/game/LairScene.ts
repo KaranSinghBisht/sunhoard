@@ -1,3 +1,4 @@
+import { pressed, textInput } from "./touch";
 import Phaser from "phaser";
 import { playMusic, playSfx } from "../art/sound";
 import { log } from "../chain/log";
@@ -235,13 +236,14 @@ export class LairScene extends Phaser.Scene {
   }
 
   private intent(): LairIntent {
+    if (textInput(document.activeElement)) return { dx: 0, dy: 0, attack: false, dash: false };
     let dx = 0;
     let dy = 0;
-    if (this.cursors.left?.isDown || this.keys.a.isDown) dx -= 1;
-    if (this.cursors.right?.isDown || this.keys.d.isDown) dx += 1;
-    if (this.cursors.up?.isDown || this.keys.w.isDown) dy -= 1;
-    if (this.cursors.down?.isDown || this.keys.s.isDown) dy += 1;
-    return { dx, dy, attack: Boolean(this.cursors.space?.isDown), dash: this.keys.shift.isDown };
+    if (pressed("left") || this.cursors.left?.isDown || this.keys.a.isDown) dx -= 1;
+    if (pressed("right") || this.cursors.right?.isDown || this.keys.d.isDown) dx += 1;
+    if (pressed("up") || this.cursors.up?.isDown || this.keys.w.isDown) dy -= 1;
+    if (pressed("down") || this.cursors.down?.isDown || this.keys.s.isDown) dy += 1;
+    return { dx, dy, attack: pressed("use") || Boolean(this.cursors.space?.isDown), dash: pressed("dash") || this.keys.shift.isDown };
   }
 
   private intentMoving(): boolean {

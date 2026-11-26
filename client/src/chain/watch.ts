@@ -10,6 +10,8 @@ import { useShells, type ShellView } from "../ui/shells";
 import { useHud } from "../ui/store";
 import { useVillage } from "../ui/village";
 import { useWorld, type PresenceView, type SlayerView } from "../ui/world";
+import { connectionActive } from "./ownership";
+import { showScene, useStage } from "../game/stage";
 import { arenaPhase } from "./arenaView";
 import { asBytes, asNumber, field } from "./bytes";
 import { log } from "./log";
@@ -46,24 +48,22 @@ async function readAccount(
   read: (program: Program, data: Buffer) => void,
 ): Promise<void> {
   const info = await connection.getAccountInfo(account);
-  if (info) read(program, info.data);
+  if (info && connectionActive(connection)) read(program, info.data);
 }
 
 export function watchAccounts(connection: Connection, program: Program, owner: PublicKey): Stop {
   const ids = [
-    connection.onAccountChange(ownedPda("player", owner), (info) => readPlayer(program, info.data)),
-    connection.onAccountChange(ownedPda("purse", owner), (info) => readPurse(program, info.data)),
-    connection.onAccountChange(ownedPda("inventory", owner), (info) => readPack(program, info.data)),
-    connection.onAccountChange(ownedPda("village", owner), (info) => readVillage(program, info.data)),
-    connection.onAccountChange(sharedPda("season"), (info) => readSeason(program, info.data)),
-    connection.onAccountChange(sharedPda("market"), (info) => readMarket(program, info.data)),
-    connection.onAccountChange(sharedPda("prices"), (info) => readPrices(program, info.data)),
-    connection.onAccountChange(sharedPda("presence"), (info) => readPresence(program, info.data)),
+    connection.onAccountChange(ownedPda("player", owner), (info) => connectionActive(connection) && readPlayer(program, info.data)),
+    connection.onAccountChange(ownedPda("purse", owner), (info) => connectionActive(connection) && readPurse(program, info.data)),
+    connection.onAccountChange(ownedPda("inventory", owner), (info) => connectionActive(connection) && readPack(program, info.data)),
+    connection.onAccountChange(ownedPda("village", owner), (info) => connectionActive(connection) && readVillage(program, info.data)),
+    connection.onAccountChange(sharedPda("season"), (info) => connectionActive(connection) && readSeason(program, info.data)),
+    connection.onAccountChange(sharedPda("market"), (info) => connectionActive(connection) && readMarket(program, info.data)),
+    connection.onAccountChange(sharedPda("prices"), (info) => connectionActive(connection) && readPrices(program, info.data)),
+    connection.onAccountChange(sharedPda("presence"), (info) => connectionActive(connection) && readPresence(program, info.data)),
   ];
   return async () => {
-    for (const id of ids) {
-      await connection.removeAccountChangeListener(id);
-    }
+    await Promise.all(ids.map(id => connection.removeAccountChangeListener(id)));
   };
 }
 
@@ -75,7 +75,7 @@ function readPlayer(program: Program, data: Buffer): void {
   usePack.getState().setPack(usePack.getState().slots, equipped === 255 ? null : equipped ?? null);
   const heat = player?.heat;
   if (Array.isArray(heat)) {
-    useAnvil.getState().setHeat(heat.map((value) => asNumber(value) ?? 0));
+    useAnvil.getState().setHeat(heat.map((value) => asNumber(value) ?? 0), asNumber(player?.heatAt ?? player?.heat_at) ?? 0);
   }
 }
 
@@ -99,7 +99,9 @@ function readMarket(program: Program, data: Buffer): void {
     out.push({
       id: index,
       seller: String(field(record, "seller")),
-      price: String(asNumber(field(record, "price")) ?? 0),
+      price: String(asBigint(field(record, "price")) ?? 0n),
+      revision: String(asBigint(field(record, "revision", "listedAt", "listed_at")) ?? 0n),
+      traits: traitsOf(field(item, "traits")),
       expiresAt: asNumber(field(record, "expiresAt", "expires_at")) ?? 0,
       kind,
       quantity,
@@ -156,6 +158,7 @@ function readVillage(program: Program, data: Buffer): void {
     workstations: Array.isArray(village?.workstations)
       ? (village.workstations as unknown[]).filter((station) => (asNumber(station) ?? 0) !== 0).length
       : 0,
+    bellUntil: asNumber(village?.bellUntil ?? village?.bell_until) ?? 0,
     bellBusy: ((asNumber(village?.bellFlags ?? village?.bell_flags) ?? 0) & 1) !== 0,
     posts,
     villagers,
@@ -189,6 +192,9 @@ function readSeason(program: Program, data: Buffer): void {
           damage: asBigint(field(record, "damage")) ?? 0n,
           clearedT1: (rowFlags & 1) !== 0,
           isKiller: (rowFlags & 2) !== 0,
+          // After awards freeze, the old age word contains the exact Glint entitlement.
+          glintAward: flags & 128 ? asBigint(field(record, "ageSecs", "age_secs")) ?? 0n : 0n,
+          glintsClaimed: (rowFlags & 4) !== 0,
         };
       })
     : [];
@@ -219,6 +225,7 @@ function readPrices(program: Program, data: Buffer): void {
   const goodA = asNumber(field(prices, "goodA", "good_a")) ?? 0;
   const goodB = asNumber(field(prices, "goodB", "good_b")) ?? 0;
   const until = asNumber(field(prices, "until")) ?? 0;
+  useWorld.getState().setSeason({ lastTick: asNumber(field(prices, "lastRotation", "last_rotation")) ?? 0 });
   const rawBounties = field(prices, "bountyKind", "bounty_kind");
   const bounties = Array.isArray(rawBounties)
     ? rawBounties.map((entry) => asNumber(entry) ?? 0).filter((entry) => entry > 0)
@@ -266,11 +273,11 @@ function packOf(inventory: Record<string, unknown> | null): SlotView[] {
     const slot = slots[index];
     if (!slot || typeof slot !== "object") continue;
     const record = slot as Record<string, unknown>;
-    const id = asNumber(field(record, "id")) ?? 0;
+    const id = asBigint(field(record, "id")) ?? 0n;
     const kind = asNumber(field(record, "kind")) ?? 0;
     const quantity = asNumber(field(record, "quantity")) ?? 0;
     const flags = asNumber(field(record, "flags")) ?? 0;
-    if (id === 0 && kind === 0 && quantity === 0 && flags === 0) continue;
+    if ((flags & 16) !== 0 || (id === 0n && kind === 0 && quantity === 0 && flags === 0)) continue;
     out.push({
       slot: index,
       id: String(id),
@@ -302,18 +309,31 @@ function traitsOf(value: unknown): Array<{ id: number; tier: number }> {
     .filter((pair) => pair.id !== 0);
 }
 
-export function watchArena(connection: Connection, program: Program, owner: PublicKey): Stop {
-  const id = connection.onAccountChange(ownedPda("arena", owner), (info) => readArena(program, info.data));
-  void readAccount(connection, program, ownedPda("arena", owner), readArena);
-  return async () => {
-    await connection.removeAccountChangeListener(id);
+export async function watchArena(connection: Connection, program: Program, owner: PublicKey): Promise<Stop> {
+  const account = ownedPda("arena", owner);
+  let latest = -1;
+  const apply = (slot: number, data: Buffer) => {
+    if (slot < latest || !connectionActive(connection)) return;
+    latest = slot;
+    const phase = arenaPhase(program, data);
+    if (!phase.scene) throw new Error(uiText("arenaUnreadable"));
+    setChainFight(phase.fight, phase.waiting && phase.scene === "cellar");
+    setChainLair(phase.lair, phase.waiting && phase.scene === "lair");
+    if (useStage.getState().scene !== phase.scene) showScene(phase.scene);
   };
-}
-
-function readArena(program: Program, data: Buffer): void {
-  const phase = arenaPhase(program, data);
-  setChainFight(phase.fight, phase.waiting);
-  setChainLair(phase.lair, phase.waiting);
+  const id = connection.onAccountChange(account, (info, ctx) => {
+    try { apply(ctx.slot, info.data); }
+    catch { useHud.getState().setNote(uiText("arenaUnreadable")); }
+  });
+  const stop = () => connection.removeAccountChangeListener(id);
+  try {
+    const initial = await connection.getAccountInfoAndContext(account);
+    if (initial.value && initial.context.slot > latest) apply(initial.context.slot, initial.value.data);
+    return stop;
+  } catch (error) {
+    await stop();
+    throw error;
+  }
 }
 
 function shellsOf(inventory: Record<string, unknown> | null): ShellView[] {

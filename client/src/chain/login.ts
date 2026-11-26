@@ -1,4 +1,5 @@
 import { Connection, PublicKey, Transaction } from "@solana/web3.js";
+import { requireCurrent } from "./ownership";
 import { authToken } from "./auth";
 import { DELEGATION_PROGRAM_ID, TEE_RPC } from "./config";
 import { ownedPda } from "./pdas";
@@ -18,7 +19,12 @@ export async function enterMeadow(
   const program = openProgram(base);
   await ensureSignedUp(base, program, owner, wallet);
   await ensureDelegated(base, program, owner, wallet);
-  const token = await authToken(owner, signMessage);
+  requireCurrent(wallet.active?.() ?? true);
+  const token = await authToken(owner, async (bytes) => {
+    requireCurrent(wallet.active?.() ?? true);
+    return signMessage(bytes);
+  });
+  requireCurrent(wallet.active?.() ?? true);
   const rollup = new Connection(rollupEndpoint(TEE_RPC, token), "confirmed");
   await ensureJoined(rollup, owner, wallet, linkEndpoint);
   return token;
@@ -55,6 +61,6 @@ function playerNumber(data: Uint8Array): number {
   return data[48] + data[49] * 256 + data[50] * 65536 + data[51] * 16777216;
 }
 
-export function walletSigner(publicKey: PublicKey, signTransaction: (tx: Transaction) => Promise<Transaction>): SendSigner {
-  return { publicKey, sign: signTransaction };
+export function walletSigner(publicKey: PublicKey, signTransaction: (tx: Transaction) => Promise<Transaction>, active?: () => boolean): SendSigner {
+  return { publicKey, sign: signTransaction, active };
 }

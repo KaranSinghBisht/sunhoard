@@ -1,110 +1,149 @@
 import { useState } from "react";
 import { PublicKey } from "@solana/web3.js";
-import { parseGlints, playerMessage } from "../chain/format";
-import { getLive } from "../chain/live";
+import { formatHundredths, parseGlints, playerMessage } from "../chain/format";
+import { getLive, type LivePlay } from "../chain/live";
 import { buyListing, cancelListing, listItem, strikeAnvil } from "../chain/play";
-import { uiText, type UiKey } from "../content/text";
-import { planStrike, useAnvil } from "./anvil";
+import { uiText } from "../content/text";
+import { charterValue, marketQuote, planStrike } from "../shared/economy";
+import { useAnvil } from "./anvil";
+import { itemLabel } from "./itemLabel";
 import { BOUND, CRACKING, FORGING, LISTED, SEALED, useMarket, type ListingView } from "./market";
-import { isGear, usePack, type SlotView } from "./pack";
+import { KIND_MEAL, isGear, usePack, type SlotView } from "./pack";
 import { useHud } from "./store";
 
-const KIND_NAME: Record<number, UiKey> = {
-  1: "kindWood",
-  2: "kindStone",
-  3: "kindCoal",
-  4: "kindOre",
-  5: "kindFood",
-  6: "kindWickwax",
-  7: "kindPlank",
-  8: "kindBar",
-  9: "kindMeal",
-  10: "kindTorch",
-  11: "kindSeed",
-  12: "gearStoneAxe",
-  13: "gearStonePickaxe",
-  14: "gearIronAxe",
-  15: "gearIronPickaxe",
-  16: "gearIronSword",
-  17: "gearGildedAxe",
-  18: "gearGildedPickaxe",
-  19: "gearGildedBlade",
-};
-const TONE_NAME = ["toneDawn", "toneNoon", "toneBlueHour", "toneDusk"] as const;
-const GRADE_NAME = ["gradeDim", "gradeGlowing", "gradeBright", "gradeRadiant", "gradeBlazing"] as const;
-const RARITY_NAME = ["rarityCommon", "rarityUncommon", "rarityRare", "rarityEpic", "rarityLegendary"] as const;
-const SHELL_NAME = ["shellSmall", "shellMedium", "shellLarge", "shellCrater", "shellBoss"] as const;
-const CHARTER: Record<number, number> = { 1: 50, 2: 40, 3: 50, 4: 150, 5: 50, 6: 200, 7: 25, 8: 400, 9: 150, 10: 10, 11: 25 };
-const GRADE_PRICE = [5_000, 9_000, 16_000, 32_000, 80_000];
+/** A sealed rimeshell may be sold unopened: that is the Coldfair's defining trade. */
+const NOT_LISTABLE = BOUND | LISTED | CRACKING | FORGING;
 /** The anvil takes at most eight fodder slots, and none that is bound, sealed, listed or mid-roll. */
 const MAX_FODDER = 8;
 const NOT_FODDER = BOUND | SEALED | LISTED | CRACKING | FORGING;
+const PRICES = ["100", "500", "2500", "10000"];
 
-/** The item's Charter value in hundredths, mirroring logic/merchant.rs. */
-function charterValue(slot: SlotView): number {
-  if (slot.flags & SEALED) return 0;
-  if (isGear(slot.kind)) {
-    const material = slot.kind >= 17 ? 2 : slot.kind >= 14 ? 1 : 0;
-    const base = [100, 500, 800][material];
-    return (base * [10_000, 24_000, 60_000, 160_000, 500_000][slot.rarity]) / 10_000;
+/** Runs one market or anvil action against the live session, with the HUD busy while it lands. */
+function run(action: (live: LivePlay) => Promise<void>): void {
+  const live = getLive();
+  if (!live) {
+    useHud.getState().setNote(uiText("needSession"));
+    return;
   }
-  if (slot.kind === 0) {
-    return (GRADE_PRICE[slot.grade] * (7_500 + slot.purityBp / 2)) / 10_000;
-  }
-  return CHARTER[slot.kind] ?? 0;
+  useHud.getState().setBusy(true);
+  action(live)
+    .catch((err: unknown) => useHud.getState().setNote(playerMessage(err)))
+    .finally(() => useHud.getState().setBusy(false));
 }
 
-function describe(listing: ListingView): string {
-  if (listing.flags & SEALED) return uiText(SHELL_NAME[listing.shell] ?? "shellSmall");
-  if (isGear(listing.kind)) {
-    return `${uiText(KIND_NAME[listing.kind] ?? "gearIronAxe")} · ${uiText(RARITY_NAME[listing.rarity] ?? "rarityCommon")}`;
+/** The purchase names the revision and price the buyer saw, so a changed listing is refused. */
+function trade(live: LivePlay, listing: ListingView, mine: boolean): Promise<void> {
+  const { rollup, session, owner, link } = live;
+  if (mine) {
+    return cancelListing(rollup, session.signer, owner, session.token, link, listing.id, listing.revision);
   }
-  if (listing.kind === 0) {
-    return `${uiText(TONE_NAME[listing.tone] ?? "toneDawn")} ${uiText(GRADE_NAME[listing.grade] ?? "gradeDim")} block`;
-  }
-  const name = uiText(KIND_NAME[listing.kind] ?? "kindWood");
-  return listing.quantity > 1 ? `${name} ×${listing.quantity}` : name;
+  const seller = new PublicKey(listing.seller);
+  return buyListing(rollup, session.signer, owner, session.token, link, listing.id, seller, listing.revision, listing.price);
 }
 
-export function ColdfairPanel({ owner }: { owner: string }) {
+function Listings({ owner }: { owner: string }) {
   const listings = useMarket((state) => state.listings);
+  const busy = useHud((state) => state.busy);
+  return (
+    <>
+      {listings.length === 0 ? <p className="dim">{uiText("noListings")}</p> : null}
+      <ul className="slots">
+        {listings.map((listing) => {
+          const mine = listing.seller === owner;
+          return (
+            <li key={`${listing.id}:${listing.revision}`}>
+              <span className="what">{itemLabel(listing)}</span>
+              <span className="acts">
+                <b className="dim">{formatHundredths(BigInt(listing.price))}</b>
+                <button type="button" disabled={busy} onClick={() => run((live) => trade(live, listing, mine))}>
+                  {uiText(mine ? "cancel" : "buy")}
+                </button>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </>
+  );
+}
+
+/** Pick the item and the price, read the terms, then list: nothing is sent on a mere selection. */
+function ListForm() {
+  const slots = usePack((state) => state.slots);
+  const busy = useHud((state) => state.busy);
+  const [price, setPrice] = useState(PRICES[1]);
+  const [slot, setSlot] = useState(-1);
+  const listable = slots.filter((item) => (item.flags & NOT_LISTABLE) === 0 && item.kind !== KIND_MEAL);
+  const chosen = listable.find((item) => item.slot === slot);
+  const asked = BigInt(price);
+  const quote = marketQuote(asked, false);
+
+  function list(): void {
+    if (!chosen) return;
+    run(async (live) => {
+      await listItem(live.rollup, live.session.signer, live.owner, live.session.token, live.link, chosen.slot, price);
+      setSlot(-1);
+    });
+  }
+
+  return (
+    <>
+      <div className="row">
+        <select value={chosen ? slot : -1} onChange={(event) => setSlot(Number(event.target.value))}>
+          <option value={-1}>{uiText("listFromPack")}</option>
+          {listable.map((item) => (
+            <option key={item.slot} value={item.slot}>
+              {itemLabel(item)}
+            </option>
+          ))}
+        </select>
+        <select value={price} onChange={(event) => setPrice(event.target.value)}>
+          {PRICES.map((option) => (
+            <option key={option} value={option}>
+              {formatHundredths(BigInt(option))}
+            </option>
+          ))}
+        </select>
+      </div>
+      {chosen ? (
+        <p className="dim">
+          {uiText("deposit")} {formatHundredths(quote.deposit)} · {uiText("fee")} {formatHundredths(quote.fee)} ·{" "}
+          {uiText("youGet")} {formatHundredths(asked - quote.fee)}
+        </p>
+      ) : null}
+      <button type="button" disabled={busy || !chosen} onClick={list}>
+        {uiText("listIt")}
+      </button>
+    </>
+  );
+}
+
+/** A stack burns whole, so it is worth its unit price times its count, as on chain. */
+function fodderValue(slots: SlotView[], fodder: number[]): bigint {
+  return fodder.reduce((sum, slot) => {
+    const candidate = slots.find((entry) => entry.slot === slot);
+    if (!candidate) return sum;
+    const units = candidate.id === "0" ? BigInt(candidate.quantity) : 1n;
+    return sum + charterValue(candidate) * units;
+  }, 0n);
+}
+
+function planFor(item: SlotView | undefined, extra: bigint, heat: number[]) {
+  if (!item || !isGear(item.kind)) return null;
+  const material = item.kind >= 17 ? 2 : item.kind >= 14 ? 1 : 0;
+  return planStrike(material, item.rarity, charterValue(item) + extra, heat[item.rarity + 1] ?? 0);
+}
+
+function Anvil() {
   const slots = usePack((state) => state.slots);
   const heat = useAnvil((state) => state.heat);
   const busy = useHud((state) => state.busy);
-  const [price, setPrice] = useState("100");
   const [strikeSlot, setStrikeSlot] = useState(-1);
   const [fodder, setFodder] = useState<number[]>([]);
   const [glints, setGlints] = useState("0");
-
-  function run(action: () => Promise<void>): void {
-    const live = getLive();
-    if (!live) {
-      useHud.getState().setNote(uiText("needSession"));
-      return;
-    }
-    useHud.getState().setBusy(true);
-    action()
-      .catch((err) => useHud.getState().setNote(playerMessage(err)))
-      .finally(() => useHud.getState().setBusy(false));
-  }
-
-  const listable = slots.filter((slot) => (slot.flags & (BOUND | SEALED)) === 0 && slot.kind !== 9);
-  const item = strikeSlot >= 0 ? slots.find((slot) => slot.slot === strikeSlot) : undefined;
-  // A stack burns whole, so it is worth its unit price times its count, as on chain.
-  const fodderValue = fodder.reduce((sum, slot) => {
-    const candidate = slots.find((entry) => entry.slot === slot);
-    if (!candidate) return sum;
-    const units = candidate.id === "0" ? candidate.quantity : 1;
-    return sum + charterValue(candidate) * units;
-  }, 0);
   const stake = parseGlints(glints);
-  const plan = item && isGear(item.kind)
-    ? (() => {
-        const material = item.kind >= 17 ? 2 : item.kind >= 14 ? 1 : 0;
-        const inputs = charterValue(item) + fodderValue + Number(stake ?? 0n);
-        return planStrike(material, item.rarity, inputs, heat[item.rarity + 1] ?? 0);
-      })()
-    : null;
+  const item = slots.find((slot) => slot.slot === strikeSlot);
+  const plan = planFor(item, fodderValue(slots, fodder) + (stake ?? 0n), heat);
 
   function toggleFodder(slot: number): void {
     setFodder((current) => {
@@ -113,124 +152,63 @@ export function ColdfairPanel({ owner }: { owner: string }) {
     });
   }
 
-  return (
-    <aside className="panel">
-      <h2>{uiText("coldfair")}</h2>
-      {listings.length === 0 ? <p className="dim">{uiText("noListings")}</p> : null}
-      <ul className="slots">
-        {listings.map((listing) => {
-          const mine = listing.seller === owner;
-          return (
-            <li key={listing.id}>
-              <span className="what">{describe(listing)}</span>
-              <span className="acts">
-                <b className="dim">{Number(listing.price) / 100}</b>
-                {mine ? (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() =>
-                      run(async () => {
-                        const live = getLive()!;
-                        await cancelListing(live.rollup, live.session.signer, live.owner, live.session.token, live.link, listing.id);
-                      })
-                    }
-                  >
-                    {uiText("cancel")}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() =>
-                      run(async () => {
-                        const live = getLive()!;
-                        await buyListing(live.rollup, live.session.signer, live.owner, live.session.token, live.link, listing.id, new PublicKey(listing.seller));
-                      })
-                    }
-                  >
-                    {uiText("buy")}
-                  </button>
-                )}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-      <div className="row">
-        <select value={price} onChange={(event) => setPrice(event.target.value)}>
-          <option value="100">1.00</option>
-          <option value="500">5.00</option>
-          <option value="2500">25.00</option>
-          <option value="10000">100.00</option>
-        </select>
-        <select
-          value={-1}
-          onChange={(event) => {
-            const slot = Number(event.target.value);
-            if (slot < 0) return;
-            run(async () => {
-              const live = getLive()!;
-              await listItem(live.rollup, live.session.signer, live.owner, live.session.token, live.link, slot, price);
-            });
-          }}
-        >
-          <option value={-1}>{uiText("listFromPack")}</option>
-          {listable.map((slot) => (
-            <option key={slot.slot} value={slot.slot}>
-              {uiText(KIND_NAME[slot.kind] ?? "kindWood")} {slot.slot}
-            </option>
-          ))}
-        </select>
-      </div>
+  function strike(): void {
+    run(async (live) => {
+      const fed = (stake ?? 0n).toString();
+      await strikeAnvil(live.rollup, live.session.signer, live.owner, live.session.token, live.link, strikeSlot, fodder, fed);
+      setFodder([]);
+      setGlints("0");
+      setStrikeSlot(-1);
+    });
+  }
 
-      <h2>{uiText("anvil")}</h2>
+  return (
+    <>
       <div className="row">
         <select value={strikeSlot} onChange={(event) => setStrikeSlot(Number(event.target.value))}>
           <option value={-1}>{uiText("pickGear")}</option>
           {slots
-            .filter((slot) => isGear(slot.kind))
+            .filter((slot) => isGear(slot.kind) && (slot.flags & NOT_FODDER) === 0)
             .map((slot) => (
               <option key={slot.slot} value={slot.slot}>
-                {uiText(KIND_NAME[slot.kind] ?? "gearIronAxe")} {slot.slot}
+                {itemLabel(slot)}
               </option>
             ))}
         </select>
       </div>
       <ul className="fodder">
         {slots
-          .filter((slot) => slot.slot !== strikeSlot && (slot.flags & NOT_FODDER) === 0 && !isGear(slot.kind))
+          .filter((slot) => slot.slot !== strikeSlot && (slot.flags & NOT_FODDER) === 0)
           .map((slot) => (
             <li key={slot.slot}>
               <label>
                 <input type="checkbox" checked={fodder.includes(slot.slot)} onChange={() => toggleFodder(slot.slot)} />
-                {uiText(KIND_NAME[slot.kind] ?? "kindWood")} {slot.slot}
+                {itemLabel(slot)}
               </label>
             </li>
           ))}
       </ul>
       {plan ? (
         <p className="dim">
-          {uiText("odds")} {plan.odds / 100}% · {uiText("fee")} {plan.fee / 100}
+          {uiText("odds")} {plan.odds / 100}% · {uiText("fee")} {formatHundredths(plan.fee)}
         </p>
       ) : null}
       <input value={glints} onChange={(event) => setGlints(event.target.value)} placeholder={uiText("glintsFodder")} />
-      <button
-        type="button"
-        disabled={busy || !plan || stake === null}
-        onClick={() =>
-          run(async () => {
-            const live = getLive()!;
-            const fed = (stake ?? 0n).toString();
-            await strikeAnvil(live.rollup, live.session.signer, live.owner, live.session.token, live.link, strikeSlot, fodder, fed);
-            setFodder([]);
-            setGlints("0");
-            setStrikeSlot(-1);
-          })
-        }
-      >
+      <button type="button" disabled={busy || !plan || stake === null} onClick={strike}>
         {uiText("strike")}
       </button>
+    </>
+  );
+}
+
+export function ColdfairPanel({ owner }: { owner: string }) {
+  return (
+    <aside className="panel">
+      <h2>{uiText("coldfair")}</h2>
+      <Listings owner={owner} />
+      <ListForm />
+      <h2>{uiText("anvil")}</h2>
+      <Anvil />
     </aside>
   );
 }
