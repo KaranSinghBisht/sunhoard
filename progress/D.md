@@ -1,3 +1,24 @@
+# Independent audit and remediation handoff
+
+## Baseline reviewed on 26 November 2026 IST
+
+✅ The starting revision was `6c4e967`. The engineering and judge review scored the submission at **68/100**. The highest-impact gaps were an inaccessible public demo, wallet-boundary errors, and economic promises that the program did not consistently enforce. Historical evidence for this revision includes 66 Rust unit tests, four MagicSVM flows, 41 browser-library tests, a devnet settlement, and two 0.04 devnet SOL claims. Those transactions predate the changes below.
+
+| Review area | Finding at baseline | Where to review the changes |
+|---|---|---|
+| Coldfair and village | 64 market slots shared a 48-slot check. Village arrays used inventory bounds. A purchase signed neither an agreed price nor a listing revision. | `instructions/market.rs`, village handlers, Coldfair UI and [track C](C.md) |
+| Item and price display | The selector hid unopened shells, mislabeled revealed blocks and posted immediately. Demo provenance, gear fodder, thaw fees and rounding were inconsistent. | Coldfair, Pack, Anvil, Barn, generated economy tables and [track C](C.md) |
+| Identity and receipts | Disconnect, switching owner and expiry could retain player state. Explorer links carried a bearer credential. A confirmation failure could discard a signed receipt. | `client/src/chain/`, wallet providers, chain watchers and [track B](B.md) |
+| Season and raid | Survival could block rollover. Stale visits could settle in the wrong phase. Entry reserved a scarce damage row. Eligibility depended on lifetime clears. | Season, arena, exit, lair and [track A](A.md) |
+| Prize and claims | The fee pot was denominated in Glints and the separately funded prize paid SOL. Players lacked distinct claim status, deadlines and settlement guidance. | Season and payout accounts, claim UI, operator CLI and [track A](A.md) |
+| Seals and bell | Rotating secrets could strand old shells after charging. Dust and removing a post lost proof data. Bell cooldown and callback correlation were incomplete. | Crack, season secrets, barn, bell, item provenance and [track C](C.md) |
+| Map and economy | The program trusted gather coordinates. A zone round trip bypassed meadow travel. Prices and anvil odds used two implementations without shared evidence. | Gather, position, `economy/`, `client/src/shared/economy.ts` |
+| First play | Practice and live play looked alike. Quest steps could advance before confirmation. Refresh could lose an active arena. Panels obscured desktop play and overflowed mobile. | App, meadow, arena, CSS and [track B](B.md) |
+| Verification and release | The privacy script could succeed on a readable secret or an unavailable RPC. Clean simulator setup omitted its debug build. The browser bundle loaded wallet code up front. Vite listened on the LAN by default. | Live harness, release smoke, build scripts, Vite config and [track B](B.md) |
+| Submission | The audit found no anonymously usable hosted client or video. The public description conflated trade fees and SOL. | README, parent `SUBMISSION.md`, student release checks below |
+
+Earlier track D notes below are a chronological record of the original build.
+
 # Progress
 Milestone: L1 rules live in `logic/`, mirrored in TS · Updated: Sat Nov 21, 9:45 PM IST
 
