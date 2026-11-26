@@ -44,7 +44,7 @@ import {
   shared,
 } from "./lib.ts";
 
-const SEASON_FLAGS = ["demo mode", "killer named", "Ember Egg held", "salt pending"];
+const SEASON_FLAGS = ["demo mode", "killer named", "Ember Egg held", "salt pending", "settled"];
 
 interface Grant {
   wallet: PublicKey;
@@ -111,6 +111,19 @@ function nextIx(game: Game, admin: PublicKey): Promise<TransactionInstruction> {
       systemProgram: SystemProgram.programId,
     })
     .instruction();
+}
+
+/**
+ * The program refuses the next season until this one is settled and Spring is
+ * over. This also checks that the Magic Action has landed on Solana, so a new
+ * season never opens over a split that was not written.
+ */
+async function payoutIsWritten(game: Game, admin: Keypair): Promise<void> {
+  const season = (await game.account.season.fetch(shared().season)) as { seasonNumber: number };
+  const payout = (await baseGame(admin).account.payout.fetch(payoutPda(1))) as { seasonNumber: { toString(): string } };
+  if (payout.seasonNumber.toString() !== String(season.seasonNumber)) {
+    throw new Error(`season ${String(season.seasonNumber)} has no payout on Solana yet: run settle, wait, then next`);
+  }
 }
 
 /** The most one `fund` call may move, so a typo cannot drain the admin key. */
@@ -210,7 +223,10 @@ function plan(command: string | undefined, args: string[]): Call {
     return async (game, admin) => send(game, await settleIx(game, admin, 1), "the season is settled");
   }
   if (command === "next") {
-    return async (game, admin) => send(game, await nextIx(game, admin), "the next season's salt is requested");
+    return async (game, admin) => {
+      await payoutIsWritten(game, adminKeypair());
+      await send(game, await nextIx(game, admin), "the next season's salt is requested");
+    };
   }
   throw new Error("usage: admin.ts status | demo on|off | schedule | grant ... | settle | next | fund <sol> | check");
 }

@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 import type { PublicKey } from "@solana/web3.js";
 import { authToken, signWithSecret } from "../chain/auth";
 import { TEE_RPC } from "../chain/config";
-import { GUEST_WALLET_NAME } from "../chain/guestWallet";
+import { GUEST_WALLET_NAME, fundGuest } from "../chain/guestWallet";
 import { rollupEndpoint } from "../chain/explorer";
 import { playerMessage } from "../chain/format";
 import { enterMeadow, walletSigner } from "../chain/login";
@@ -39,7 +39,7 @@ export function Meadow({ zoom, gate: gateOpen }: { zoom: number; gate: boolean }
   const host = useRef<HTMLDivElement>(null);
   const play = useRef<Play | null>(null);
   const { connection } = useConnection();
-  const { publicKey, signTransaction, signMessage, select } = useWallet();
+  const { publicKey, signTransaction, signMessage, select, wallet } = useWallet();
   const sessionReady = useHud((state) => state.sessionReady);
   const busy = useHud((state) => state.busy);
   const game = useRef<ReturnType<typeof createGame> | null>(null);
@@ -87,15 +87,18 @@ export function Meadow({ zoom, gate: gateOpen }: { zoom: number; gate: boolean }
       // Sign-up pays rent for six accounts; say so plainly instead of failing at the first transaction.
       const joined = await connection.getAccountInfo(ownedPda("player", publicKey));
       if (!joined && (await connection.getBalance(publicKey)) < SIGN_UP_LAMPORTS) {
-        hud.setNote(uiText("needSol"));
-        return;
+        const guest = wallet?.adapter.name === GUEST_WALLET_NAME;
+        if (!guest || !(await fundGuest(connection, publicKey, SIGN_UP_LAMPORTS))) {
+          hud.setNote(uiText("needSol"));
+          return;
+        }
       }
-      const wallet = walletSigner(publicKey, signTransaction);
+      const signing = walletSigner(publicKey, signTransaction);
       const signer = openSigner();
       const linkToken = await authToken(signer.signer.publicKey, signWithSecret(signer.signer.secretKey));
       const link = rollupEndpoint(TEE_RPC, linkToken);
-      const walletToken = await enterMeadow(connection, publicKey, wallet, signMessage, link);
-      const session = await createSession(connection, wallet, publicKey);
+      const walletToken = await enterMeadow(connection, publicKey, signing, signMessage, link);
+      const session = await createSession(connection, signing, publicKey);
       const rollup = new Connection(rollupEndpoint(TEE_RPC, walletToken), "confirmed");
       play.current = {
         rollup,

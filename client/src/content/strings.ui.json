@@ -2,7 +2,7 @@
   "connect": "Connect",
   "enter": "Enter the meadow",
   "guest": "Use a guest key",
-  "needSol": "This wallet needs 0.1 devnet SOL to sign up. Get it at faucet.solana.com.",
+  "needSol": "Needs 0.1 devnet SOL. Copy your address (top right) into faucet.solana.com.",
   "entering": "Entering",
   "energy": "Energy",
   "glints": "Glints",

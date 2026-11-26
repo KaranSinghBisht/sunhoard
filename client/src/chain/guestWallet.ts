@@ -5,8 +5,17 @@ import {
   isVersionedTransaction,
   type WalletName,
 } from "@solana/wallet-adapter-base";
-import { Keypair, type PublicKey, type Transaction, type TransactionVersion, type VersionedTransaction } from "@solana/web3.js";
+import {
+  type Connection,
+  Keypair,
+  LAMPORTS_PER_SOL,
+  type PublicKey,
+  type Transaction,
+  type TransactionVersion,
+  type VersionedTransaction,
+} from "@solana/web3.js";
 import nacl from "tweetnacl";
+import { log } from "./log";
 
 export const GUEST_WALLET_NAME = "Guest key (devnet)" as WalletName<"Guest key (devnet)">;
 
@@ -59,6 +68,28 @@ export class GuestWalletAdapter extends BaseMessageSignerWalletAdapter {
     if (!this.keypair) throw new WalletNotConnectedError();
     return nacl.sign.detached(message, this.keypair.secretKey);
   }
+}
+
+const AIRDROP_LAMPORTS = 0.2 * LAMPORTS_PER_SOL;
+const AIRDROP_WAIT_MS = 20_000;
+
+/**
+ * Asks the public devnet faucet to fund a guest key. The faucet is rate-limited
+ * and often says no, so the caller falls back to telling the visitor to fund it.
+ */
+export async function fundGuest(connection: Connection, key: PublicKey, enough: number): Promise<boolean> {
+  try {
+    await connection.requestAirdrop(key, AIRDROP_LAMPORTS);
+  } catch (err) {
+    log(`the devnet faucet said no: ${err instanceof Error ? err.message.slice(0, 80) : "unknown"}`);
+    return false;
+  }
+  const deadline = Date.now() + AIRDROP_WAIT_MS;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    if ((await connection.getBalance(key)) >= enough) return true;
+  }
+  return false;
 }
 
 function loadOrCreate(): Keypair {

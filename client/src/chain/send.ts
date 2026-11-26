@@ -46,18 +46,33 @@ export async function sendInstruction(
 
 class SettledError extends Error {}
 
+const LOG_TRIES = 3;
+const LOG_WAIT_MS = 400;
+/** Anchor numbers a program's own errors from 6000; framework errors below that are not written for players. */
+const OWN_ERRORS_FROM = 6000;
+
 /** The program's own words for a failed transaction, read from its logs; a plain line if there are none. */
 async function refusal(connection: Connection, signature: string): Promise<string> {
-  try {
-    const tx = await connection.getTransaction(signature, { commitment: "confirmed", maxSupportedTransactionVersion: 0 });
-    for (const line of tx?.meta?.logMessages ?? []) {
-      const said = /Error Message: (.+?)\.*$/.exec(line);
-      if (said) return `${said[1]}.`;
+  for (let attempt = 0; attempt < LOG_TRIES; attempt += 1) {
+    try {
+      const tx = await connection.getTransaction(signature, { commitment: "confirmed", maxSupportedTransactionVersion: 0 });
+      const said = tx ? ownMessage(tx.meta?.logMessages ?? []) : null;
+      if (said) return said;
+      if (tx) break;
+    } catch (err) {
+      log(`no logs for a refused transaction: ${err instanceof Error ? err.message.slice(0, 120) : "unknown"}`);
     }
-  } catch (err) {
-    log(`no logs for a refused transaction: ${err instanceof Error ? err.message.slice(0, 120) : "unknown"}`);
+    await delay(LOG_WAIT_MS);
   }
   return uiText("refused");
+}
+
+function ownMessage(logs: string[]): string | null {
+  for (const line of logs) {
+    const said = /Error Number: (\d+)\. Error Message: (.+?)\.*$/.exec(line);
+    if (said && Number(said[1]) >= OWN_ERRORS_FROM) return `${said[2]}.`;
+  }
+  return null;
 }
 
 async function submit(

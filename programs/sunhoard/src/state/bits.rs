@@ -14,6 +14,8 @@ pub const DEMO_MODE: u8 = 1 << 0;
 pub const HAS_KILLER: u8 = 1 << 1;
 pub const HAS_EMBER: u8 = 1 << 2;
 pub const SALT_PENDING: u8 = 1 << 3;
+/// `settle_season` ran: the split is on its way to Solana, and the next season may open.
+pub const SETTLED: u8 = 1 << 4;
 pub const GATHER_PENDING: u8 = 1 << 0;
 pub const CRAFT_PENDING: u8 = 1 << 0;
 pub const STRIKE_PENDING: u8 = 1 << 0;

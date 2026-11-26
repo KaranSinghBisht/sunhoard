@@ -156,9 +156,10 @@ node --experimental-strip-types scripts/admin.ts status
 
 - `grant <wallet> gear <kind> <rarity>` and `grant <wallet> shell <size>`: labelled demo items, demo mode only
 - `settle`: after Old Gloam falls, commits the season and runs the Magic Action that writes the split on Solana
-- `next`: opens the next season after a kill. The damage table and Old Gloam's HP reset; the pot and the name the
-  Ember Egg gave carry over. Settle first: the next settle overwrites the payout record, and a share nobody claimed
-  stays in the vault for the new pot
+- `next`: opens the next season. The program allows it only after the kill, after `settle`, and after Spring has
+  ended (5 minutes in demo mode, a day live); Spring is the claim window. The damage table and Old Gloam's HP reset;
+  the pot and the name the Ember Egg gave carry over. One payout record serves every season: the next settle
+  overwrites it, and a share nobody claimed by then stays in the vault for the new pot
 - `fund <sol>`: adds devnet SOL to the prize vault
 - `schedule`: starts the season clock's crank. In demo mode the Long Night then ends after 10 minutes, so leave it
   off for a world that should stay open

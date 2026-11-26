@@ -1,5 +1,6 @@
-//! Opens a season: the first, or the next one once Old Gloam has fallen. The
-//! salt is written only by the VRF callback and is never logged.
+//! Opens a season: the first, or the next one once Old Gloam has fallen, the
+//! split is settled and Spring is over. The salt is written only by the VRF
+//! callback and is never logged.
 
 use anchor_lang::prelude::*;
 use ephemeral_rollups_sdk::anchor::{vrf, vrf_callback};
@@ -16,7 +17,7 @@ use crate::logic::numbers::{
 use crate::logic::sealed_hp;
 use crate::state::{
     DamageSlot, Player, Season, World, DEMO_MODE, HAS_EMBER, HAS_KILLER, PLAYER_SEED,
-    SALT_PENDING, SEASON_SEED, WORLD_SEED, WYRM_NAME_LEN,
+    SALT_PENDING, SEASON_SEED, SETTLED, WORLD_SEED, WYRM_NAME_LEN,
 };
 use bytemuck::Zeroable;
 use session_keys::{Session, SessionTokenV2};
@@ -24,21 +25,17 @@ use session_keys::{Session, SessionTokenV2};
 pub fn request(ctx: Context<StartSeason>, discriminator: Vec<u8>) -> Result<()> {
     {
         let season = &mut ctx.accounts.season.load_mut()?;
-        // The first season opens freely; a later one only after the wyrm has fallen.
-        if season.season_number != 0 && season.flags & HAS_KILLER == 0 {
+        let now = Clock::get()?.unix_timestamp;
+        if season.season_number == 0 {
+            first_request(season, now)?;
+        } else if season.flags & SETTLED == 0 || now < season.phase_ends {
+            // A later season opens only once the wyrm has fallen, the split has been
+            // settled, and Spring has run its course: that is the claim window. It
+            // leaves `phase_started` alone, so First Light is not opened twice. A
+            // dropped callback is simply asked again; only the first one is taken.
             return err!(GameError::NotReady);
         }
-        let now = Clock::get()?.unix_timestamp;
-        if season.flags & SALT_PENDING != 0 {
-            // A dropped callback must not brick the season: after the release window
-            // the admin may ask the VRF again. `phase_started` holds the request time.
-            let waited = now.saturating_sub(season.phase_started);
-            if waited >= 0 && waited < SALT_RELEASE_SECS {
-                return err!(GameError::NotReady);
-            }
-        }
         season.flags |= SALT_PENDING;
-        season.phase_started = now;
     }
     let ix = create_request_scoped_randomness_ix(RequestRandomnessParams {
         payer: ctx.accounts.admin.key(),
@@ -54,6 +51,19 @@ pub fn request(ctx: Context<StartSeason>, discriminator: Vec<u8>) -> Result<()> 
     });
     ctx.accounts
         .invoke_signed_vrf(&ctx.accounts.admin.to_account_info(), &ix)?;
+    Ok(())
+}
+
+/// A dropped callback must not brick the first season: after the release window
+/// the admin may ask the VRF again. `phase_started` holds the request time.
+fn first_request(season: &mut Season, now: i64) -> Result<()> {
+    if season.flags & SALT_PENDING != 0 {
+        let waited = now.saturating_sub(season.phase_started);
+        if waited >= 0 && waited < SALT_RELEASE_SECS {
+            return err!(GameError::NotReady);
+        }
+    }
+    season.phase_started = now;
     Ok(())
 }
 
@@ -90,7 +100,7 @@ pub fn consume(ctx: Context<SaltCb>, randomness: [u8; 32]) -> Result<()> {
 /// A new night starts with an empty damage table and no killer. The pot and
 /// the wyrm's name carry over; an unused Ember Egg does not.
 fn clear_slayers(season: &mut Season) {
-    season.flags &= !(SALT_PENDING | HAS_KILLER | HAS_EMBER);
+    season.flags &= !(SALT_PENDING | HAS_KILLER | HAS_EMBER | SETTLED);
     season.killer = Pubkey::default();
     season.ember_holder = Pubkey::default();
     season.total_damage = 0;

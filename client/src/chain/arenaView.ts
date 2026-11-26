@@ -2,6 +2,7 @@ import type { Program } from "@coral-xyz/anchor";
 import { type Fight, type Foe, type Fighter, type Shot, type Weapon } from "../shared/fight";
 import { type Lair, type LairShot, type LairWeapon } from "../shared/lair";
 import { asBytes, asNumber, field } from "./bytes";
+import { log } from "./log";
 
 const MODE_FIGHT = 2;
 const MODE_LAIR = 3;
@@ -177,7 +178,8 @@ function body(value: unknown): Fighter | null {
 function decode(program: Program, data: Buffer): Record<string, unknown> | null {
   try {
     return program.coder.accounts.decode("arena", data) as Record<string, unknown>;
-  } catch {
+  } catch (err) {
+    log(`could not read the arena: ${err instanceof Error ? err.message.slice(0, 80) : "unknown"}`);
     return null;
   }
 }

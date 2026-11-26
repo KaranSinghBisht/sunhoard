@@ -9,8 +9,8 @@ use crate::errors::GameError;
 use crate::logic::numbers::{AGE_DEMO_SECS, AGE_LIVE_SECS};
 use crate::logic::split_pot;
 use crate::state::{
-    Payout, PayoutRow, Vault, CLAIMED, DEMO_MODE, FIRST_SEASON_SEED, PAYOUT_SEED, SEASON_SEED,
-    VAULT_SEED,
+    Payout, PayoutRow, Vault, CLAIMED, DEMO_MODE, FIRST_SEASON_SEED, HAS_KILLER, PAYOUT_SEED,
+    SEASON_SEED, SETTLED, VAULT_SEED,
 };
 use bytemuck::Zeroable;
 
@@ -23,6 +23,10 @@ pub fn record(ctx: Context<RecordPayout>) -> Result<()> {
     let ending = u64::from(committed.season_number);
     if ending == 0 || committed.admin != ctx.accounts.escrow_auth.key() {
         return err!(GameError::BadAccount);
+    }
+    // Only a season that ended in a kill and was settled has a split to write.
+    if committed.flags & (HAS_KILLER | SETTLED) != (HAS_KILLER | SETTLED) {
+        return err!(GameError::NotReady);
     }
     // One record serves every season. A season is written once; the next one
     // overwrites it, and any share left unclaimed stays in the vault for that pot.

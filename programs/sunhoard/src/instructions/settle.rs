@@ -7,7 +7,7 @@ use ephemeral_rollups_sdk::{ActionArgs, ShortAccountMeta};
 
 use crate::errors::GameError;
 use crate::state::{
-    Season, World, FIRST_SEASON_SEED, PAYOUT_SEED, SEASON_SEED, VAULT_SEED, WORLD_SEED,
+    Season, SETTLED, World, FIRST_SEASON_SEED, PAYOUT_SEED, SEASON_SEED, VAULT_SEED, WORLD_SEED,
 };
 
 const ACTION_UNITS: u32 = 400_000;
@@ -16,6 +16,9 @@ pub fn handle(ctx: Context<SettleSeason>) -> Result<()> {
     if ctx.accounts.world.hp != 0 || ctx.accounts.season.load()?.season_number == 0 {
         return err!(GameError::NotReady);
     }
+    // Marked before the commit, so the committed copy carries it and the next
+    // season cannot open over an unrecorded split.
+    ctx.accounts.season.load_mut()?.flags |= SETTLED;
     let data = anchor_lang::InstructionData::data(&crate::instruction::RecordPayout {});
     let action = CallHandler {
         destination_program: crate::ID,

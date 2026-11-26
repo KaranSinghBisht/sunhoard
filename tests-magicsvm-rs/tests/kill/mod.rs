@@ -116,6 +116,10 @@ pub fn the_kill_pays_every_share(world: &mut World, shared: &Shared, owned: &Own
     );
     // The visit ended by itself; leaving still stops its crank.
     send(world, ROLLUP, exit_lair(world, shared, owned), "exit_lair after the kill");
+    assert!(
+        !try_send(world, ROLLUP, start_season(world, shared)),
+        "no new season before the split is settled"
+    );
     paid_in_full(world, shared);
     a_new_night_begins(world, shared, owned);
 }
@@ -123,13 +127,26 @@ pub fn the_kill_pays_every_share(world: &mut World, shared: &Shared, owned: &Own
 /// After the kill the admin opens the next season: a fresh wyrm, an empty
 /// damage table, the name the Ember Egg gave, and the Crater open again.
 fn a_new_night_begins(world: &mut World, shared: &Shared, owned: &Owned) {
+    assert_ne!(season(world, shared).flags & state::SETTLED, 0);
+    assert!(
+        !try_send(world, ROLLUP, start_season(world, shared)),
+        "no new season while Spring, the claim window, still runs"
+    );
+    // Spring runs for a day; the harness ends it now.
+    write_rollup(world, &shared.season, |data| {
+        let ends = core::mem::offset_of!(state::Season, phase_ends);
+        data[ends..ends + 8].copy_from_slice(&0i64.to_le_bytes());
+    });
     send(world, ROLLUP, start_season(world, shared), "start_season after the kill");
     fulfill(world, 1);
     let next = season(world, shared);
     assert_eq!(next.season_number, 2);
     assert_eq!(next.damage_len, 0);
     assert_eq!(next.total_damage, 0);
-    assert_eq!(next.flags & (state::HAS_KILLER | state::SALT_PENDING), 0);
+    assert_eq!(
+        next.flags & (state::HAS_KILLER | state::SALT_PENDING | state::SETTLED),
+        0
+    );
     assert_eq!(&next.wyrm_name[..7], b"SOLARIS");
     let (hp, max) = gloam(world, shared);
     assert!(hp > 0 && hp == max, "Old Gloam is whole again");

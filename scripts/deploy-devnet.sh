@@ -30,7 +30,9 @@ anchor build
 # resumes from it; only the missing chunks are sent again. Works for the first
 # deploy and for an upgrade.
 mkdir -p .secrets
-buffer=.secrets/deploy-buffer.json
+# One buffer per binary: a buffer sized for an older build cannot take this one.
+digest=$(shasum -a 256 target/deploy/sunhoard.so | cut -c1-12)
+buffer=.secrets/deploy-buffer-$digest.json
 if [ ! -f "$buffer" ]; then
   solana-keygen new --no-bip39-passphrase --silent --force -o "$buffer" >/dev/null
   chmod 600 "$buffer"
@@ -51,21 +53,24 @@ done_ok=0
 while [ "$tries" -lt 10 ]; do
   tries=$((tries + 1))
   echo "upload pass $tries"
+  set +e
   out=$(solana program deploy --url "$url" -k "$admin" --fee-payer "$admin" \
     --upgrade-authority "$admin" --buffer "$buffer" --program-id "$program_key" \
-    --max-sign-attempts 60 target/deploy/sunhoard.so 2>&1 | grep -E '^Error|^Program Id' || true)
-  echo "$out"
-  case "$out" in
-    *"Program Id"*)
-      done_ok=1
-      rm -f "$buffer"
-      break
-      ;;
-  esac
+    --max-sign-attempts 60 target/deploy/sunhoard.so 2>&1)
+  rc=$?
+  set -e
+  echo "$out" | grep -E '^Error|^Program Id: ' || true
+  # Success is the CLI's exit code and its own success line, never a word inside an error.
+  if [ "$rc" -eq 0 ] && echo "$out" | grep -q '^Program Id: '; then
+    done_ok=1
+    rm -f "$buffer"
+    break
+  fi
   sleep 15
 done
 if [ "$done_ok" -ne 1 ]; then
   echo "the deploy did not finish in $tries passes; run this script again to resume" >&2
+  echo "a buffer from an abandoned build still holds SOL: solana program close --buffers -k <admin key> --url devnet" >&2
   exit 1
 fi
 
