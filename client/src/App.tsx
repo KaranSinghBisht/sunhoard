@@ -7,6 +7,7 @@ import { beginTale, useTale } from "./game/story/tale";
 import { BarnPanel } from "./ui/BarnPanel";
 import { CellarButton } from "./ui/CellarButton";
 import { Cinema } from "./ui/Cinema";
+import { EmberEgg } from "./ui/EmberEgg";
 import { ClaimButton } from "./ui/ClaimButton";
 import { ColdfairPanel } from "./ui/ColdfairPanel";
 import { Guide } from "./ui/Guide";
@@ -69,7 +70,7 @@ function PlayerActions({ owner }: { owner: string }) {
     return () => window.removeEventListener("keydown", key);
   }, []);
   return <>
-    <div className="actions"><CellarButton /><LairButton /><ClaimButton />
+    <div className="actions"><CellarButton /><LairButton /><ClaimButton /><EmberEgg owner={owner} />
       {(["pack", "coldfair", "barn", "thaw", "txlog"] as const).map(id =>
         <button type="button" key={id} className="quiet" aria-expanded={panel === id}
           onClick={() => setPanel(panel === id ? null : id)}>{uiText(id)}</button>)}

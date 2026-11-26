@@ -235,5 +235,9 @@
   "listIt": "List it",
   "loadFailed": "The game did not finish loading.",
   "reload": "Reload",
-  "knockFirst": "Enter the meadow before the cellar hatch will open."
+  "knockFirst": "Enter the meadow before the cellar hatch will open.",
+  "emberEgg": "You hold the Ember Egg. Name the next wyrm:",
+  "nameWyrm": "Name it",
+  "wyrmNamed": "The next wyrm is named",
+  "wyrmRule": "Letters and spaces, 16 at most"
 }
