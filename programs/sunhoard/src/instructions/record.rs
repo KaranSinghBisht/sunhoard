@@ -9,23 +9,25 @@ use crate::errors::GameError;
 use crate::logic::numbers::{AGE_DEMO_SECS, AGE_LIVE_SECS};
 use crate::logic::split_pot;
 use crate::state::{
-    Payout, PayoutRow, Vault, CLAIMED, DEMO_MODE, FIRST_SEASON, FIRST_SEASON_SEED, PAYOUT_SEED,
-    SEASON_SEED, VAULT_SEED,
+    Payout, PayoutRow, Vault, CLAIMED, DEMO_MODE, FIRST_SEASON_SEED, PAYOUT_SEED, SEASON_SEED,
+    VAULT_SEED,
 };
+use bytemuck::Zeroable;
 
 const ACTION_ESCROW_INDEX: u8 = 255;
 
 pub fn record(ctx: Context<RecordPayout>) -> Result<()> {
-    if ctx.accounts.payout.load()?.season_number != 0 {
-        return Ok(());
-    }
     let data = ctx.accounts.season.try_borrow_data()?;
     let committed = read_committed(&data)?;
     drop(data);
-    if committed.season_number as u64 != FIRST_SEASON
-        || committed.admin != ctx.accounts.escrow_auth.key()
-    {
+    let ending = u64::from(committed.season_number);
+    if ending == 0 || committed.admin != ctx.accounts.escrow_auth.key() {
         return err!(GameError::BadAccount);
+    }
+    // One record serves every season. A season is written once; the next one
+    // overwrites it, and any share left unclaimed stays in the vault for that pot.
+    if ctx.accounts.payout.load()?.season_number >= ending {
+        return Ok(());
     }
     let min_age = if committed.flags & DEMO_MODE != 0 {
         AGE_DEMO_SECS
@@ -40,6 +42,7 @@ pub fn record(ctx: Context<RecordPayout>) -> Result<()> {
         &committed.rows,
         &split,
         pot,
+        ending,
     )
 }
 
@@ -71,10 +74,14 @@ fn write_payout(
     rows: &[crate::logic::DamageRow],
     split: &crate::logic::Split,
     pot: u64,
+    season_number: u64,
 ) -> Result<()> {
     let len = split.len;
     if len > payout.rows.len() {
         return err!(GameError::NotReady);
+    }
+    for row in payout.rows.iter_mut().skip(len) {
+        *row = PayoutRow::zeroed();
     }
     for index in 0..len {
         let wallet = Pubkey::try_from(rows[index].wallet.as_slice())
@@ -89,7 +96,7 @@ fn write_payout(
     payout.len = u8::try_from(len).map_err(|_| error!(GameError::NotReady))?;
     payout.pot = pot;
     payout.unpaid = split.unpaid;
-    payout.season_number = FIRST_SEASON;
+    payout.season_number = season_number;
     Ok(())
 }
 

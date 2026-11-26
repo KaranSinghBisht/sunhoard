@@ -1,4 +1,5 @@
-//! Opens season 1. The salt is written only by the VRF callback and is never logged.
+//! Opens a season: the first, or the next one once Old Gloam has fallen. The
+//! salt is written only by the VRF callback and is never logged.
 
 use anchor_lang::prelude::*;
 use ephemeral_rollups_sdk::anchor::{vrf, vrf_callback};
@@ -14,15 +15,17 @@ use crate::logic::numbers::{
 };
 use crate::logic::sealed_hp;
 use crate::state::{
-    Player, Season, World, DEMO_MODE, HAS_EMBER, PLAYER_SEED, SALT_PENDING, SEASON_SEED,
-    WORLD_SEED, WYRM_NAME_LEN,
+    DamageSlot, Player, Season, World, DEMO_MODE, HAS_EMBER, HAS_KILLER, PLAYER_SEED,
+    SALT_PENDING, SEASON_SEED, WORLD_SEED, WYRM_NAME_LEN,
 };
+use bytemuck::Zeroable;
 use session_keys::{Session, SessionTokenV2};
 
 pub fn request(ctx: Context<StartSeason>, discriminator: Vec<u8>) -> Result<()> {
     {
         let season = &mut ctx.accounts.season.load_mut()?;
-        if season.season_number != 0 {
+        // The first season opens freely; a later one only after the wyrm has fallen.
+        if season.season_number != 0 && season.flags & HAS_KILLER == 0 {
             return err!(GameError::NotReady);
         }
         let now = Clock::get()?.unix_timestamp;
@@ -57,7 +60,7 @@ pub fn request(ctx: Context<StartSeason>, discriminator: Vec<u8>) -> Result<()> 
 pub fn consume(ctx: Context<SaltCb>, randomness: [u8; 32]) -> Result<()> {
     let demo = {
         let season = ctx.accounts.season.load()?;
-        if season.season_number != 0 || season.flags & SALT_PENDING == 0 {
+        if season.flags & SALT_PENDING == 0 {
             return err!(GameError::NotReady);
         }
         season.flags & DEMO_MODE != 0
@@ -71,14 +74,30 @@ pub fn consume(ctx: Context<SaltCb>, randomness: [u8; 32]) -> Result<()> {
         LONG_NIGHT_LIVE_SECS
     };
     let ends = now.checked_add(length).ok_or(error!(GameError::NotReady))?;
-    write_world(&mut ctx.accounts.world, randomness, hp);
     let season = &mut ctx.accounts.season.load_mut()?;
-    season.season_number = 1;
+    write_world(&mut ctx.accounts.world, randomness, hp, season.season_number == 0);
+    season.season_number = season
+        .season_number
+        .checked_add(1)
+        .ok_or(error!(GameError::NotReady))?;
     season.phase = PHASE_LONG_NIGHT;
     season.phase_started = now;
     season.phase_ends = ends;
-    season.flags &= !SALT_PENDING;
+    clear_slayers(season);
     Ok(())
+}
+
+/// A new night starts with an empty damage table and no killer. The pot and
+/// the wyrm's name carry over; an unused Ember Egg does not.
+fn clear_slayers(season: &mut Season) {
+    season.flags &= !(SALT_PENDING | HAS_KILLER | HAS_EMBER);
+    season.killer = Pubkey::default();
+    season.ember_holder = Pubkey::default();
+    season.total_damage = 0;
+    season.damage_len = 0;
+    for slot in season.damage.iter_mut() {
+        *slot = DamageSlot::zeroed();
+    }
 }
 
 /// The Ember Egg holder names the next wyrm (A–Z and spaces, at most 16 chars).
@@ -100,11 +119,19 @@ pub fn name_wyrm(ctx: Context<NameWyrm>, name: String) -> Result<()> {
     Ok(())
 }
 
-fn write_world(world: &mut World, randomness: [u8; 32], hp: u64) {
-    world.salts[0] = randomness;
-    world.epoch = 0;
+/// Each season seals its loot under its own salt. Four are kept, so a shell
+/// stays thawable for three seasons after the one that dropped it.
+fn write_world(world: &mut World, randomness: [u8; 32], hp: u64, first: bool) {
+    let epoch = if first {
+        0
+    } else {
+        (usize::from(world.epoch) + 1) % world.salts.len()
+    };
+    world.salts[epoch] = randomness;
+    world.epoch = epoch as u8;
     world.hp = hp;
     world.max_hp = hp;
+    world.warmest = 0;
 }
 
 fn meta(pubkey: &Pubkey) -> SerializableAccountMeta {

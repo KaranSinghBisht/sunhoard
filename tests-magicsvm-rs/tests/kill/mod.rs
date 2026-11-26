@@ -6,10 +6,10 @@ use sunhoard::logic::ids::{MAT_STONE, RARITY_COMMON};
 use sunhoard::logic::numbers::{BP, CRIT_BP, PHASE_SPRING};
 use sunhoard::{accounts, instruction, state};
 use sunhoard_magicsvm_tests::{
-    ix, lamports, read, send, try_send, u64_at, warp, write_rollup, Owned, Shared, World,
+    fulfill, ix, lamports, read, send, try_send, u64_at, warp, write_rollup, Owned, Shared, World,
 };
 
-use super::build::{claim, enter_lair, exit_lair, settle};
+use super::build::{claim, enter_lair, exit_lair, settle, start_season};
 use super::{bot, BASE, ROLLUP};
 
 /// Seven other slayers, each with the keeper's own damage, no cellar clear
@@ -117,6 +117,28 @@ pub fn the_kill_pays_every_share(world: &mut World, shared: &Shared, owned: &Own
     // The visit ended by itself; leaving still stops its crank.
     send(world, ROLLUP, exit_lair(world, shared, owned), "exit_lair after the kill");
     paid_in_full(world, shared);
+    a_new_night_begins(world, shared, owned);
+}
+
+/// After the kill the admin opens the next season: a fresh wyrm, an empty
+/// damage table, the name the Ember Egg gave, and the Crater open again.
+fn a_new_night_begins(world: &mut World, shared: &Shared, owned: &Owned) {
+    send(world, ROLLUP, start_season(world, shared), "start_season after the kill");
+    fulfill(world, 1);
+    let next = season(world, shared);
+    assert_eq!(next.season_number, 2);
+    assert_eq!(next.damage_len, 0);
+    assert_eq!(next.total_damage, 0);
+    assert_eq!(next.flags & (state::HAS_KILLER | state::SALT_PENDING), 0);
+    assert_eq!(&next.wyrm_name[..7], b"SOLARIS");
+    let (hp, max) = gloam(world, shared);
+    assert!(hp > 0 && hp == max, "Old Gloam is whole again");
+    assert!(
+        !try_send(world, ROLLUP, start_season(world, shared)),
+        "no new season while the wyrm lives"
+    );
+    send(world, ROLLUP, enter_lair(world, shared, owned), "enter_lair in season 2");
+    send(world, ROLLUP, exit_lair(world, shared, owned), "exit_lair in season 2");
 }
 
 fn paid_in_full(world: &mut World, shared: &Shared) {
