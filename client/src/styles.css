@@ -745,3 +745,11 @@ button.small {
 .hud .note { order: 9; flex: 1 1 100%; white-space: normal; overflow: visible; }
 .hud .note:empty { display: none; }
 .hud .mute { margin-left: auto; }
+
+/* The proof panel's two answers: what a stranger was given, and what the owner is. */
+.panel h3 {
+  margin: 10px 0 4px;
+  font-size: var(--text);
+  font-weight: 400;
+  color: var(--teal);
+}

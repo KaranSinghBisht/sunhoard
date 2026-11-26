@@ -6,6 +6,7 @@ import { textInput } from "./game/touch";
 import { beginTale, useTale } from "./game/story/tale";
 import { BarnPanel } from "./ui/BarnPanel";
 import { CellarButton } from "./ui/CellarButton";
+import { CheatPanel } from "./ui/CheatPanel";
 import { Cinema } from "./ui/Cinema";
 import { EmberEgg } from "./ui/EmberEgg";
 import { ClaimButton } from "./ui/ClaimButton";
@@ -60,7 +61,7 @@ export default function App({ onExit }: { onExit: () => void }) {
 }
 
 function PlayerActions({ owner }: { owner: string }) {
-  const [panel, setPanel] = useState<"pack" | "coldfair" | "barn" | "thaw" | "txlog" | null>(null);
+  const [panel, setPanel] = useState<"pack" | "coldfair" | "barn" | "thaw" | "txlog" | "cheat" | null>(null);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (textInput(event.target) || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
@@ -71,7 +72,7 @@ function PlayerActions({ owner }: { owner: string }) {
   }, []);
   return <>
     <div className="actions"><CellarButton /><LairButton /><ClaimButton /><EmberEgg owner={owner} />
-      {(["pack", "coldfair", "barn", "thaw", "txlog"] as const).map(id =>
+      {(["pack", "coldfair", "barn", "thaw", "txlog", "cheat"] as const).map(id =>
         <button type="button" key={id} className="quiet" aria-expanded={panel === id}
           onClick={() => setPanel(panel === id ? null : id)}>{uiText(id)}</button>)}
     </div>
@@ -80,5 +81,6 @@ function PlayerActions({ owner }: { owner: string }) {
     {panel === "barn" && <BarnPanel />}
     {panel === "thaw" && <ThawPanel />}
     {panel === "txlog" && <TxLogPanel />}
+    {panel === "cheat" && <CheatPanel />}
   </>;
 }

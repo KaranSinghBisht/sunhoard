@@ -240,5 +240,15 @@
   "nameWyrm": "Name it",
   "wyrmNamed": "The next wyrm is named",
   "wyrmRule": "Letters and spaces, 16 at most",
-  "wyrmNow": "The wyrm in the Crater this season:"
+  "wyrmNow": "The wyrm in the Crater this season:",
+  "cheat": "Try to cheat",
+  "cheatWhy": "On a public chain you could read the dragon's health and anyone's purse with one request. Ask this rollup for them with a brand-new key that has no rights.",
+  "cheatRun": "Ask as a stranger",
+  "cheatStranger": "A stranger's key got:",
+  "cheatOwner": "Your own key gets:",
+  "cheatSeason": "Season, public by design",
+  "cheatWorld": "World: Old Gloam's health and the loot seals",
+  "cheatPurse": "Your purse",
+  "cheatNull": "null",
+  "cheatBytes": "bytes"
 }
