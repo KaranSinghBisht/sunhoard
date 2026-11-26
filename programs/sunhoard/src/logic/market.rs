@@ -6,9 +6,9 @@ use crate::errors::LogicError;
 use super::numbers::BP;
 
 /// The listing deposit in Glint hundredths: 1 Glint, burned when unsold.
-pub const LISTING_DEPOSIT_HUNDREDTHS: u64 = 100;
+pub use crate::constants::LISTING_DEPOSIT_HUNDREDTHS;
 /// The Hearth Penny: 5% of the price.
-pub const HEARTH_PENNY_BP: u64 = 500;
+pub use crate::constants::HEARTH_PENNY_BP;
 /// A seller may hold at most this many listings.
 pub const LISTINGS_PER_PLAYER: u8 = 10;
 /// Listings expire after three days; `tick_world` sweeps them.

@@ -8,18 +8,18 @@ use super::merchant::charter_gear;
 use super::numbers::BP;
 
 /// The chance before heat, in basis points: 80% × inputs ÷ target.
-pub const BASE_ODDS_BP: u64 = 8_000;
+pub use crate::constants::BASE_ODDS_BP;
 /// Strikes under 30% before heat are refused.
-pub const REFUSE_BELOW_BP: u64 = 3_000;
+pub use crate::constants::REFUSE_BELOW_BP;
 /// The odds never pass 80%.
-pub const ODDS_CAP_BP: u64 = 8_000;
+pub use crate::constants::ODDS_CAP_BP;
 /// The strike fee: 5% of the target's value.
-pub const STRIKE_FEE_BP: u64 = 500;
+pub use crate::constants::STRIKE_FEE_BP;
 /// Heat per failure, in percentage points; at most 15.
 pub const HEAT_PER_FAIL: u16 = 5;
-pub const HEAT_CAP: u16 = 15;
+pub use crate::constants::HEAT_CAP;
 /// Heat fades after 30 minutes of an idle anvil.
-pub const HEAT_IDLE_SECS: i64 = 30 * 60;
+pub use crate::constants::HEAT_IDLE_SECS;
 /// A failed strike returns 10% of the input value as scrap.
 pub const SCRAP_BP: u64 = 1_000;
 

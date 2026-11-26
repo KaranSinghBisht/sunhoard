@@ -21,6 +21,7 @@ const TWO_DAYS: i64 = 2 * 86_400;
 
 pub fn damage_counts_once(world: &mut World, shared: &Shared, owned: &Owned) {
     enter(world, shared, owned);
+    assert_eq!(season(world, shared).damage_len, 0, "entry alone reserves no row");
     let hits = fight(world, shared, owned, 120);
     assert!(hits >= 3, "the bot landed {hits} hits");
     send(world, ROLLUP, exit_lair(world, shared, owned), "exit_lair");
@@ -46,6 +47,8 @@ pub fn the_kill_pays_every_share(world: &mut World, shared: &Shared, owned: &Own
     write_rollup(world, &owned.player, |data| {
         let clears = core::mem::offset_of!(state::Player, first_clears);
         data[clears..clears + 4].copy_from_slice(&1u32.to_le_bytes());
+        let current = core::mem::offset_of!(state::Player, cleared_season);
+        data[current..current + 4].copy_from_slice(&1u32.to_le_bytes());
         let born = core::mem::offset_of!(state::Player, born_at);
         let then = i64::from_le_bytes(data[born..born + 8].try_into().expect("born_at")) - TWO_DAYS;
         data[born..born + 8].copy_from_slice(&then.to_le_bytes());
@@ -55,6 +58,10 @@ pub fn the_kill_pays_every_share(world: &mut World, shared: &Shared, owned: &Own
         data[hp..hp + 8].copy_from_slice(&LAST_HP.to_le_bytes());
     });
 
+    write_rollup(world, &shared.season, |data| {
+        let season: &mut state::Season = bytemuck::from_bytes_mut(data);
+        season.pot = 10_000;
+    });
     enter(world, shared, owned);
     fight(world, shared, owned, 200);
     assert_eq!(gloam(world, shared).0, 0, "Old Gloam fell");
@@ -120,7 +127,7 @@ pub fn the_kill_pays_every_share(world: &mut World, shared: &Shared, owned: &Own
         !try_send(world, ROLLUP, start_season(world, shared)),
         "no new season before the split is settled"
     );
-    paid_in_full(world, shared);
+    paid_in_full(world, shared, owned);
     a_new_night_begins(world, shared, owned);
 }
 
@@ -132,11 +139,10 @@ fn a_new_night_begins(world: &mut World, shared: &Shared, owned: &Owned) {
         !try_send(world, ROLLUP, start_season(world, shared)),
         "no new season while Spring, the claim window, still runs"
     );
-    // Spring runs for a day; the harness ends it now.
-    write_rollup(world, &shared.season, |data| {
-        let ends = core::mem::offset_of!(state::Season, phase_ends);
-        data[ends..ends + 8].copy_from_slice(&0i64.to_le_bytes());
-    });
+    let record = read(world, BASE, &shared.payout);
+    let payout: &state::Payout = bytemuck::from_bytes(&record[8..]);
+    sunhoard_magicsvm_tests::set_clock(&mut world.svm, i64::from(payout.claim_until));
+    assert!(!try_send(world, BASE, claim(world, shared)), "claim deadline is exclusive");
     send(world, ROLLUP, start_season(world, shared), "start_season after the kill");
     fulfill(world, 1);
     let next = season(world, shared);
@@ -158,8 +164,18 @@ fn a_new_night_begins(world: &mut World, shared: &Shared, owned: &Owned) {
     send(world, ROLLUP, exit_lair(world, shared, owned), "exit_lair in season 2");
 }
 
-fn paid_in_full(world: &mut World, shared: &Shared) {
+fn paid_in_full(world: &mut World, shared: &Shared, owned: &Owned) {
     send(world, ROLLUP, settle(world, shared), "settle_season");
+    let glints = || ix(instruction::ClaimGlints { season_number: 1 }, accounts::ClaimGlints {
+        payer: world.key, player: owned.player, purse: owned.purse, season: shared.season,
+        payout: shared.payout, session_token: None,
+    });
+    let glint_ix = glints();
+    let balance = u64_at(&read(world, ROLLUP, &owned.purse), 8 + core::mem::offset_of!(state::Purse, glints));
+    send(world, ROLLUP, glint_ix.clone(), "collect Glints");
+    assert_eq!(u64_at(&read(world, ROLLUP, &owned.purse), 8 + core::mem::offset_of!(state::Purse, glints)), balance + 3875);
+    assert_eq!(season(world, shared).pot, 6125);
+    assert!(!try_send(world, ROLLUP, glint_ix), "Glints cannot be collected twice");
     let data = read(world, BASE, &shared.payout);
     let payout: &state::Payout = bytemuck::from_bytes(&data[8..]);
     assert_eq!(payout.season_number, 1);

@@ -13,6 +13,10 @@ pub enum GameError {
     Full,
     #[msg("Old Gloam has fallen. The sun is free.")]
     SunFree,
+    #[msg("That listing changed or expired. Refresh the Coldfair.")]
+    ChangedListing,
+    #[msg("This legacy shell has lost its seal. No thaw fee was charged.")]
+    LostSeal,
 }
 
 /// Rule failures. The program maps these to player-facing errors later.

@@ -81,9 +81,9 @@ pub struct Arena {
     pub chest_pending: u8,
     /// 1 when this arena is running a lair visit, not a dungeon.
     pub lair: u8,
-    pub _pad_mid: [u8; 3],
+    pub raid_age: [u8; 3],
     pub player: Body,
-    pub _pad_player: [u8; 4],
+    pub raid_season: u32,
     pub monsters: [Monster; MAX_MONSTERS],
     pub shots: [Shot; SHOT_SLOTS],
     pub sparks: [Shot; SHOT_SLOTS],
@@ -96,7 +96,8 @@ pub struct Arena {
     pub intent_dash: u8,
     /// Hits since the last spark in the Gloaming.
     pub lair_hits: u8,
-    pub _pad_lair: [u8; 3],
+    pub raid_cleared: u8,
+    pub _pad_lair: [u8; 2],
     /// The spark's Sunhoard share, and the heal if it drifts back.
     pub spark_value: u32,
     pub spark_heal: u32,

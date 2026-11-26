@@ -27,7 +27,8 @@ pub struct Post {
     pub tone: u8,
     pub grade: u8,
     pub flags: u8,
-    pub _pad: [u8; 7],
+    pub escrow_slot_plus_one: u8,
+    pub _pad: [u8; 6],
 }
 
 #[zero_copy]

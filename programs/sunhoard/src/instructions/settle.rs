@@ -18,7 +18,14 @@ pub fn handle(ctx: Context<SettleSeason>) -> Result<()> {
     }
     // Marked before the commit, so the committed copy carries it and the next
     // season cannot open over an unrecorded split.
-    ctx.accounts.season.load_mut()?.flags |= SETTLED;
+    {
+        let mut season = ctx.accounts.season.load_mut()?;
+        require!(season.flags & crate::state::HAS_KILLER != 0, GameError::NotReady);
+        if season.flags & SETTLED == 0 {
+            super::awards::freeze(&mut season)?;
+            season.flags |= SETTLED;
+        }
+    }
     let data = anchor_lang::InstructionData::data(&crate::instruction::RecordPayout {});
     let action = CallHandler {
         destination_program: crate::ID,

@@ -20,7 +20,7 @@ use crate::state::{
 };
 
 pub fn list(ctx: Context<List>, slot: u8, price: u64) -> Result<()> {
-    let index = index(slot)?;
+    let index = index(slot, crate::state::INVENTORY_SLOTS)?;
     let now = Clock::get()?.unix_timestamp;
     let seller = ctx.accounts.player.owner;
     {
@@ -48,7 +48,7 @@ pub fn list(ctx: Context<List>, slot: u8, price: u64) -> Result<()> {
         market.listings[listing_index] = Listing {
             seller,
             price,
-            listed_at: now,
+            revision: market.listings[listing_index].revision.checked_add(1).ok_or(error!(GameError::NotReady))?,
             expires_at: now.checked_add(LISTING_TTL_SECS).ok_or(error!(GameError::NotReady))?,
             item: to_listed(item),
         };
@@ -60,33 +60,32 @@ pub fn list(ctx: Context<List>, slot: u8, price: u64) -> Result<()> {
     Ok(())
 }
 
-pub fn cancel(ctx: Context<Cancel>, listing: u8) -> Result<()> {
-    let listing_index = index(listing)?;
+pub fn cancel(ctx: Context<Cancel>, listing: u8, revision: u64) -> Result<()> {
+    let listing_index = index(listing, crate::state::LISTING_SLOTS)?;
     let owner = ctx.accounts.player.owner;
     let market = &mut *ctx.accounts.market.load_mut()?;
     let found = &market.listings[listing_index];
     if !open(found) || found.seller != owner {
         return err!(GameError::BadAccount);
     }
+    require_eq!(found.revision, revision, GameError::ChangedListing);
     let item = found.item;
     let inventory = &mut *ctx.accounts.inventory.load_mut()?;
     let slot = find_empty(inventory).ok_or(error!(GameError::Full))?;
     inventory.slots[slot] = from_listed(item);
-    market.listings[listing_index] = Listing::default();
+    market.listings[listing_index] = Listing { revision, ..Listing::default() };
     market.count = market.count.saturating_sub(1);
     recount(inventory);
     Ok(())
 }
 
-pub fn buy(ctx: Context<Buy>, listing: u8) -> Result<()> {
-    let listing_index = index(listing)?;
+pub fn buy(ctx: Context<Buy>, listing: u8, revision: u64, expected_price: u64) -> Result<()> {
+    let listing_index = index(listing, crate::state::LISTING_SLOTS)?;
     let buyer = ctx.accounts.player.owner;
     let (seller, price, item) = {
         let market = ctx.accounts.market.load()?;
         let found = &market.listings[listing_index];
-        if !open(found) {
-            return err!(GameError::BadAccount);
-        }
+        validate_quote(found, revision, expected_price, Clock::get()?.unix_timestamp)?;
         if found.seller == buyer {
             return err!(GameError::BadAmount);
         }
@@ -129,8 +128,14 @@ pub fn buy(ctx: Context<Buy>, listing: u8) -> Result<()> {
     inventory.slots[slot] = from_listed(item);
     recount(inventory);
     let market = &mut *ctx.accounts.market.load_mut()?;
-    market.listings[listing_index] = Listing::default();
+    market.listings[listing_index] = Listing { revision, ..Listing::default() };
     market.count = market.count.saturating_sub(1);
+    Ok(())
+}
+
+fn validate_quote(listing: &Listing, revision: u64, price: u64, now: i64) -> Result<()> {
+    require!(open(listing) && listing.revision == revision && listing.price == price
+        && now < listing.expires_at, GameError::ChangedListing);
     Ok(())
 }
 
@@ -241,9 +246,9 @@ fn from_listed(item: ListedItem) -> ItemSlot {
     }
 }
 
-fn index(slot: u8) -> Result<usize> {
+fn index(slot: u8, capacity: usize) -> Result<usize> {
     let index = usize::from(slot);
-    if index >= crate::state::INVENTORY_SLOTS {
+    if index >= capacity {
         return err!(GameError::BadAmount);
     }
     Ok(index)
@@ -307,7 +312,7 @@ impl Listing {
         Self {
             seller: Pubkey::default(),
             price: 0,
-            listed_at: 0,
+            revision: 0,
             expires_at: 0,
             item: ListedItem {
                 id: 0,

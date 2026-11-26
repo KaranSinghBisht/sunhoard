@@ -1,11 +1,7 @@
 //! Starting values from the economy notes. Glints elsewhere are hundredths.
 //! Odds are parts per million. Fight time is 100 ms steps.
 
-use super::ids::{
-    GEAR_IRON_AXE, GEAR_IRON_PICKAXE, GEAR_IRON_SWORD, GEAR_STONE_AXE, KIND_BAR, KIND_COAL,
-    KIND_FOOD, KIND_MEAL, KIND_ORE, KIND_PLANK, KIND_SEED, KIND_STONE, KIND_TORCH, KIND_WICKWAX,
-    KIND_WOOD, SHELL_LARGE, SHELL_MEDIUM, SHELL_SMALL,
-};
+use super::ids::{SHELL_LARGE, SHELL_MEDIUM, SHELL_SMALL};
 
 pub const PPM: u32 = 1_000_000;
 pub const BP: u32 = 10_000;
@@ -35,7 +31,7 @@ pub const DUST_PPM: [u32; 5] = [700_000, 500_000, 250_000, 0, 0];
 /// Frost dust paid when a shell is not a block, in Glint hundredths.
 pub const DUST_HUNDREDTHS: [u64; 5] = [200, 500, 1_000, 0, 0];
 /// Thaw fees in Glint hundredths. The table is 5, 12, 30, 0, and 0 Glints.
-pub const THAW_FEE_HUNDREDTHS: [u64; 5] = [500, 1_200, 3_000, 0, 0];
+pub use crate::constants::THAW_FEE_HUNDREDTHS;
 pub const PAIR_PPM_LARGE: u32 = 150_000;
 
 pub const WEAPON_BASE: [u32; 3] = [6, 10, 16];
@@ -103,51 +99,22 @@ pub const LONG_NIGHT_DEMO_SECS: i64 = 10 * 60;
 // --- L1: Auntie Pell and the market (Glint hundredths) ---
 
 /// Charter prices: what Auntie Pell pays for a material stack.
-pub const CHARTER_MATERIAL: [(u16, u64); 11] = [
-    (KIND_WOOD, 50),
-    (KIND_STONE, 40),
-    (KIND_COAL, 50),
-    (KIND_FOOD, 50),
-    (KIND_WICKWAX, 200),
-    (KIND_PLANK, 25),
-    (KIND_ORE, 150),
-    (KIND_BAR, 400),
-    (KIND_MEAL, 150),
-    (KIND_TORCH, 10),
-    (KIND_SEED, 25),
-];
+pub use crate::constants::CHARTER_MATERIAL;
 
 /// Pell's shop prices: what she charges for a good she sells.
-pub const SHOP_PRICE: [(u16, u64); 11] = [
-    (KIND_WOOD, 100),
-    (KIND_STONE, 100),
-    (KIND_COAL, 100),
-    (KIND_FOOD, 100),
-    (KIND_WICKWAX, 500),
-    (KIND_PLANK, 50),
-    (KIND_ORE, 400),
-    (KIND_BAR, 1_000),
-    (KIND_MEAL, 600),
-    (KIND_TORCH, 100),
-    (KIND_SEED, 100),
-];
+pub use crate::constants::SHOP_PRICE;
 
 /// Pell's plain gear: kind to shop price in hundredths.
-pub const GEAR_SHOP_PRICE: [(u16, u64); 4] = [
-    (GEAR_STONE_AXE, 600),
-    (GEAR_IRON_AXE, 3_500),
-    (GEAR_IRON_PICKAXE, 4_000),
-    (GEAR_IRON_SWORD, 3_000),
-];
+pub use crate::constants::GEAR_SHOP_PRICE;
 
 /// Charter gear bases by material, in hundredths: stone 1, iron 5, gilded 8 Glints.
-pub const GEAR_BASE_HUNDREDTHS: [u64; 3] = [100, 500, 800];
+pub use crate::constants::GEAR_BASE_HUNDREDTHS;
 /// Charter rarity multipliers in basis points: ×1, ×2.4, ×6, ×16, ×50.
-pub const RARITY_PRICE_BP: [u64; 5] = [10_000, 24_000, 60_000, 160_000, 500_000];
+pub use crate::constants::RARITY_PRICE_BP;
 /// Block grade prices in hundredths: Dim 50, Glowing 90, Bright 160, Radiant 320, Blazing 800 Glints.
-pub const GRADE_PRICE_HUNDREDTHS: [u64; 5] = [5_000, 9_000, 16_000, 32_000, 80_000];
+pub use crate::constants::GRADE_PRICE_HUNDREDTHS;
 /// Pell pays grade price × (0.75 + 0.5 × purity) for a revealed block.
-pub const BLOCK_PRICE_BASE_BP: u64 = 7_500;
+pub use crate::constants::BLOCK_PRICE_BASE_BP;
 /// Sealed shells Pell buys, in hundredths: Small 10, Medium 25, Large 60 Glints.
 pub const SHELL_PRICE_HUNDREDTHS: [u64; 4] = [1_000, 2_500, 6_000, 0];
 /// A Want pays +50% while the board lists the kind and the time holds.

@@ -17,6 +17,23 @@ const BASE: TransactionTarget = TransactionTarget::Base;
 const ROLLUP: TransactionTarget = TransactionTarget::Ephemeral;
 
 #[test]
+fn release_binary_runs_the_first_gather() {
+    let mut world = sunhoard_magicsvm_tests::boot_release();
+    let shared = shared();
+    let owned = owned(&world.key);
+    let init = init_game(&world, &shared);
+    send(&mut world, BASE, init, "init_game");
+    let payout = init_payout(&world, &shared);
+    send(&mut world, BASE, payout, "init_payout");
+    let signup = sign_up(&world, &owned);
+    send(&mut world, BASE, signup, "sign_up");
+    delegate_all(&mut world, &shared, &owned);
+    open_season(&mut world, &shared);
+    join_world(&mut world, &shared, &owned);
+    gather(&mut world, &owned);
+}
+
+#[test]
 fn m1_runs_from_sign_up_through_a_claim() {
     let mut world = boot();
     let shared = shared();
@@ -601,14 +618,16 @@ fn join_world(world: &mut World, shared: &Shared, owned: &sunhoard_magicsvm_test
         ),
         1
     );
+    let now = world.svm.ephemeral().get_sysvar::<solana_clock::Clock>().unix_timestamp;
+    sunhoard_magicsvm_tests::set_clock(&mut world.svm, now + 2);
     send(
         world,
         ROLLUP,
         ix(
             instruction::PostPosition {
-                x: 0,
-                y: 0,
-                zone: 1,
+                x: 376,
+                y: 240,
+                zone: 0,
                 facing: 0,
             },
             accounts::PostPosition {
@@ -629,8 +648,8 @@ fn gather(world: &mut World, owned: &sunhoard_magicsvm_tests::Owned) {
         ix(
             instruction::Gather {
                 node: 0,
-                node_x: 0,
-                node_y: 0,
+                node_x: 376,
+                node_y: 240,
             },
             accounts::Gather {
                 payer: world.key,

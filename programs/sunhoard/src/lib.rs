@@ -3,7 +3,7 @@
 use anchor_lang::prelude::*;
 use ephemeral_rollups_sdk::anchor::ephemeral;
 
-pub mod constants_stub;
+pub mod constants;
 pub mod errors;
 pub mod instructions;
 pub mod logic;
@@ -157,6 +157,10 @@ pub use instructions::position::PostPosition;
 pub(crate) use instructions::position::__client_accounts_post_position;
 #[cfg(feature = "cpi")]
 pub(crate) use instructions::position::__cpi_client_accounts_post_position;
+pub use instructions::awards::ClaimGlints;
+pub(crate) use instructions::awards::__client_accounts_claim_glints;
+#[cfg(feature = "cpi")]
+pub(crate) use instructions::awards::__cpi_client_accounts_claim_glints;
 pub(crate) use instructions::record::__client_accounts_claim;
 pub(crate) use instructions::record::__client_accounts_record_payout;
 #[cfg(feature = "cpi")]
@@ -455,8 +459,8 @@ pub mod sunhoard {
         ctx.accounts.player.owner == ctx.accounts.payer.key(),
         SessionError::InvalidToken
     )]
-    pub fn cancel(ctx: Context<Cancel>, listing: u8) -> Result<()> {
-        instructions::market::cancel(ctx, listing)
+    pub fn cancel_quoted(ctx: Context<Cancel>, listing: u8, revision: u64) -> Result<()> {
+        instructions::market::cancel(ctx, listing, revision)
     }
 
     /// Buys a listing: both purses, the item and the Hearth Penny split move
@@ -465,8 +469,8 @@ pub mod sunhoard {
         ctx.accounts.player.owner == ctx.accounts.payer.key(),
         SessionError::InvalidToken
     )]
-    pub fn buy(ctx: Context<Buy>, listing: u8) -> Result<()> {
-        instructions::market::buy(ctx, listing)
+    pub fn buy_quoted(ctx: Context<Buy>, listing: u8, revision: u64, expected_price: u64) -> Result<()> {
+        instructions::market::buy(ctx, listing, revision, expected_price)
     }
 
     /// Strikes the anvil: the item, fodder and Glints go in, one VRF roll
@@ -603,7 +607,7 @@ pub mod sunhoard {
     }
 
     /// The wanderer roll.
-    pub fn bell_cb(ctx: Context<BellCb>, randomness: [u8; 32], nonce: u8) -> Result<()> {
+    pub fn bell_cb(ctx: Context<BellCb>, randomness: [u8; 32], nonce: u64) -> Result<()> {
         instructions::village::bell_cb(ctx, randomness, nonce)
     }
 
@@ -647,6 +651,15 @@ pub mod sunhoard {
     /// Writes the SOL split from the committed damage table.
     pub fn record_payout(ctx: Context<RecordPayout>) -> Result<()> {
         instructions::record::record(ctx)
+    }
+
+    /// Collects the wallet's Glint entitlement into its private rollup purse.
+    #[session_auth_or(
+        ctx.accounts.player.owner == ctx.accounts.payer.key(),
+        SessionError::InvalidToken
+    )]
+    pub fn claim_glints(ctx: Context<ClaimGlints>, season_number: u32) -> Result<()> {
+        instructions::awards::claim(ctx, season_number)
     }
 
     /// Pays one unclaimed share from the Vault.

@@ -37,7 +37,7 @@ pub fn cancel(
     listing: u8,
 ) -> solana_instruction::Instruction {
     ix(
-        instruction::Cancel { listing },
+        instruction::CancelQuoted { listing, revision: 1 },
         accounts::Cancel {
             payer: world.key,
             player: owned.player,
@@ -526,6 +526,7 @@ pub fn start_season(world: &World, shared: &Shared) -> solana_instruction::Instr
     ix(
         instruction::StartSeason {},
         accounts::StartSeason {
+            payout: shared.payout,
             admin: world.key,
             season: shared.season,
             world: shared.world,
@@ -576,6 +577,7 @@ pub fn crack(
             inventory: owned.inventory,
             purse: owned.purse,
             season: shared.season,
+            world: shared.world,
             session_token: None,
         },
     )
@@ -595,6 +597,7 @@ pub fn reveal(
             inventory: owned.inventory,
             purse: owned.purse,
             world: shared.world,
+            season: shared.season,
             session_token: None,
         },
     )

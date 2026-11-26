@@ -4,29 +4,19 @@
 use anchor_lang::prelude::*;
 
 use crate::errors::GameError;
-use crate::logic::numbers::{PHASE_SPRING, SPRING_DEMO_SECS, SPRING_LIVE_SECS};
+use crate::logic::numbers::{PHASE_LONG_NIGHT, PHASE_SPRING, SPRING_DEMO_SECS, SPRING_LIVE_SECS};
 use crate::state::{
-    Arena, Season, World, CLEARED_T1, DEMO_MODE, HAS_EMBER, HAS_KILLER, IS_KILLER,
+    Arena, Season, World, CLEARED_T1, DEMO_MODE, HAS_EMBER, HAS_KILLER, IS_KILLER, KILL_SNAPSHOT, KILL_DEMO,
 };
 
-/// Ensures the wallet has a damage row and refreshes what the payout's equal
-/// share checks: the wallet's age and whether it has cleared the cellars.
-pub(crate) fn ensure_row(
-    season: &mut Season,
-    wallet: &Pubkey,
-    age_secs: u64,
-    cleared_t1: bool,
-) -> Result<()> {
-    let index = match find_row(season, wallet) {
-        Some(index) => index,
-        None => open_row(season, wallet)?,
-    };
-    let row = &mut season.damage[index];
-    row.age_secs = row.age_secs.max(age_secs);
-    if cleared_t1 {
-        row.flags |= CLEARED_T1;
-    }
-    Ok(())
+pub(crate) fn raid_open(arena: &Arena, season: &Season) -> bool {
+    arena.raid_season != 0 && arena.raid_season == season.season_number && season.phase == PHASE_LONG_NIGHT
+}
+
+pub(crate) fn can_participate(season: &Season, wallet: &Pubkey) -> bool {
+    usize::from(season.damage_len) < season.damage.len()
+        || find_row(season, wallet).is_some()
+        || season.damage.iter().any(|row| row.damage == 0)
 }
 
 /// Drains the arena's unflushed damage into the shared pool, once. Damage
@@ -39,7 +29,7 @@ pub(crate) fn flush(
     now: i64,
 ) -> Result<bool> {
     let damage = core::mem::take(&mut arena.unflushed_damage);
-    if damage == 0 || world.hp == 0 {
+    if damage == 0 || world.hp == 0 || !raid_open(arena, season) || !can_participate(season, &arena.owner) {
         return Ok(false);
     }
     let counted = damage.min(world.hp);
@@ -48,6 +38,12 @@ pub(crate) fn flush(
         Some(index) => index,
         None => open_row(season, &arena.owner)?,
     };
+    let [a, b, c] = arena.raid_age;
+    let row = &mut season.damage[index];
+    row.age_secs = row.age_secs.max(u64::from(u32::from_le_bytes([a, b, c, 0])));
+    if arena.raid_cleared != 0 {
+        row.flags |= CLEARED_T1;
+    }
     season.damage[index].damage = season.damage[index]
         .damage
         .checked_add(counted)
@@ -87,6 +83,13 @@ fn crown(season: &mut Season, index: usize, now: i64) -> Result<()> {
     } else {
         SPRING_LIVE_SECS
     };
+    let pot = season.pot.to_le_bytes();
+    season.kill_pot_low.copy_from_slice(&pot[..4]);
+    season.kill_pot_high.copy_from_slice(&pot[4..]);
+    season.flags |= KILL_SNAPSHOT;
+    if season.flags & DEMO_MODE != 0 {
+        season.flags |= KILL_DEMO;
+    }
     season.phase = PHASE_SPRING;
     season.phase_started = now;
     season.phase_ends = now
@@ -95,7 +98,7 @@ fn crown(season: &mut Season, index: usize, now: i64) -> Result<()> {
     Ok(())
 }
 
-fn find_row(season: &Season, wallet: &Pubkey) -> Option<usize> {
+pub(crate) fn find_row(season: &Season, wallet: &Pubkey) -> Option<usize> {
     let len = usize::from(season.damage_len).min(season.damage.len());
     season
         .damage
@@ -106,14 +109,14 @@ fn find_row(season: &Season, wallet: &Pubkey) -> Option<usize> {
 
 fn open_row(season: &mut Season, wallet: &Pubkey) -> Result<usize> {
     let len = usize::from(season.damage_len).min(season.damage.len());
-    if len >= season.damage.len() {
-        return err!(GameError::NotReady);
-    }
-    let row = &mut season.damage[len];
-    row.wallet = *wallet;
-    row.damage = 0;
-    row.age_secs = 0;
-    row.flags = 0;
-    season.damage_len = u8::try_from(len + 1).map_err(|_| error!(GameError::NotReady))?;
-    Ok(len)
+    let index = if len == season.damage.len() {
+        // Reuse a pre-upgrade reservation that never dealt any damage.
+        season.damage.iter().position(|row| row.damage == 0).ok_or(error!(GameError::NotReady))?
+    } else {
+        season.damage_len = u8::try_from(len + 1).map_err(|_| error!(GameError::NotReady))?;
+        len
+    };
+    season.damage[index] = bytemuck::Zeroable::zeroed();
+    season.damage[index].wallet = *wallet;
+    Ok(index)
 }

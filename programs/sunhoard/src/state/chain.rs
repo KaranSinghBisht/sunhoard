@@ -26,9 +26,11 @@ pub const FIRST_SEASON_SEED: [u8; 8] = FIRST_SEASON.to_le_bytes();
 pub struct DamageSlot {
     pub wallet: Pubkey,
     pub damage: u64,
+    /// Wallet age during combat; Glint entitlement once GLINT_AWARDS is set.
     pub age_secs: u64,
     pub flags: u8,
-    pub _pad: [u8; 7],
+    /// Original age when the entitlement is written.
+    pub frozen_age: [u8; 7],
 }
 
 #[account(zero_copy)]
@@ -47,9 +49,10 @@ pub struct Season {
     pub damage_len: u8,
     pub phase: u8,
     pub flags: u8,
-    pub _pad: [u8; 5],
+    pub kill_pot_low: [u8; 4],
+    pub _pad: [u8; 1],
     pub wyrm_name: [u8; WYRM_NAME_LEN],
-    pub _pad_name: [u8; 4],
+    pub kill_pot_high: [u8; 4],
     pub damage: [DamageSlot; MAX_DAMAGE_ROWS],
 }
 
@@ -77,7 +80,7 @@ impl World {
 pub struct Listing {
     pub seller: Pubkey,
     pub price: u64,
-    pub listed_at: i64,
+    pub revision: u64,
     pub expires_at: i64,
     pub item: ListedItem,
 }
@@ -155,7 +158,9 @@ pub struct Payout {
     pub pot: u64,
     pub unpaid: u64,
     pub len: u8,
-    pub _pad: [u8; 7],
+    pub _pad: [u8; 3],
+    /// Exclusive Unix deadline. Zero identifies a legacy record.
+    pub claim_until: u32,
     pub rows: [PayoutRow; MAX_DAMAGE_ROWS],
 }
 
@@ -200,7 +205,8 @@ pub struct Player {
     pub craft_nonce: u64,
     pub craft_recipe: u8,
     pub craft_flags: u8,
-    pub _pad_craft: [u8; 6],
+    pub _pad_craft: [u8; 2],
+    pub cleared_season: u32,
     /// When the anvil last changed heat; 30 idle minutes cool it.
     pub heat_at: i64,
     /// The pending strike: the slot it is forging, when it started.

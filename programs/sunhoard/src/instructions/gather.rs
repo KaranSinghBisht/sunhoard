@@ -101,7 +101,9 @@ fn charge(
     if day_of(player.gather_at) != day_of(now) {
         player.energy_used_today = 0;
     }
-    if !in_gather_range(player.x, player.y, node_x, node_y) {
+    if crate::logic::gather::canonical_node(node, player.zone) != Some((node_x, node_y))
+        || !in_gather_range(player.x, player.y, node_x, node_y)
+    {
         return err!(GameError::NotReady);
     }
     let used = player.energy_used_today;

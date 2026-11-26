@@ -6,10 +6,10 @@ use ephemeral_rollups_sdk::pda::ephemeral_balance_pda_from_payer;
 
 use super::committed::read_committed;
 use crate::errors::GameError;
-use crate::logic::numbers::{AGE_DEMO_SECS, AGE_LIVE_SECS};
+use crate::logic::numbers::{SPRING_DEMO_SECS, SPRING_LIVE_SECS};
 use crate::logic::split_pot;
 use crate::state::{
-    Payout, PayoutRow, Vault, CLAIMED, DEMO_MODE, FIRST_SEASON_SEED, HAS_KILLER, PAYOUT_SEED,
+    Payout, PayoutRow, Vault, CLAIMED, FIRST_SEASON_SEED, HAS_KILLER, PAYOUT_SEED,
     SEASON_SEED, SETTLED, VAULT_SEED,
 };
 use bytemuck::Zeroable;
@@ -33,11 +33,14 @@ pub fn record(ctx: Context<RecordPayout>) -> Result<()> {
     if ctx.accounts.payout.load()?.season_number >= ending {
         return Ok(());
     }
-    let min_age = if committed.flags & DEMO_MODE != 0 {
-        AGE_DEMO_SECS
-    } else {
-        AGE_LIVE_SECS
-    };
+    let now = Clock::get()?.unix_timestamp;
+    require!(now >= i64::from(ctx.accounts.payout.load()?.claim_until), GameError::NotReady);
+    let demo = super::awards::demo(committed.flags);
+    let min_age = super::awards::min_age(demo);
+    let duration = if demo { SPRING_DEMO_SECS } else { SPRING_LIVE_SECS };
+    let deadline = now.checked_add(duration).and_then(|t| u32::try_from(t).ok())
+        .ok_or(error!(GameError::NotReady))?;
+    ctx.accounts.payout.load_mut()?.claim_until = deadline;
     let pot = spendable(&ctx.accounts.vault.to_account_info())?;
     let split =
         split_pot(pot, &committed.rows, min_age).map_err(|_| error!(GameError::NotReady))?;
@@ -64,6 +67,7 @@ fn mark_claimed(ctx: &mut Context<Claim>) -> Result<u64> {
     if payout.season_number == 0 {
         return err!(GameError::NotReady);
     }
+    require!(payout.claim_until == 0 || Clock::get()?.unix_timestamp < i64::from(payout.claim_until), GameError::NotReady);
     let index = find_row(payout, ctx.accounts.wallet.key())?;
     let amount = payout.rows[index].amount;
     if amount == 0 {

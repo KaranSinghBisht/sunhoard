@@ -37,10 +37,18 @@ pub struct World {
 }
 
 pub fn boot() -> World {
+    boot_with("sbf-debug")
+}
+
+pub fn boot_release() -> World {
+    boot_with("deploy")
+}
+
+fn boot_with(directory: &str) -> World {
     let payer = Keypair::new();
     let mut svm = MagicSVM::new();
     let so = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../target/sbf-debug/sunhoard.so");
+        .join("../target").join(directory).join("sunhoard.so");
     add_program(&mut svm, as_address(sunhoard::ID), &so);
     airdrop(&mut svm, &payer.pubkey(), 40 * LAMPORTS_PER_SOL);
     set_clock(&mut svm, CLOCK_UNIX);
@@ -262,7 +270,7 @@ pub fn system() -> Pubkey {
     system_program::ID
 }
 
-fn set_clock(svm: &mut MagicSVM, unix: i64) {
+pub fn set_clock(svm: &mut MagicSVM, unix: i64) {
     let mut clock: Clock = svm.get_sysvar();
     clock.unix_timestamp = unix;
     svm.set_sysvar(&clock);

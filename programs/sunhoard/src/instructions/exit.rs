@@ -63,6 +63,14 @@ fn bank(ctx: &mut Context<ExitDungeon>) -> Result<()> {
     if !clear {
         return Ok(());
     }
+    let mut season = ctx.accounts.season.load_mut()?;
+    ctx.accounts.player.cleared_season = season.season_number;
+    if season.phase == crate::logic::numbers::PHASE_LONG_NIGHT {
+        if let Some(index) = super::lair_tally::find_row(&season, &ctx.accounts.player.owner) {
+            season.damage[index].flags |= crate::state::CLEARED_T1;
+        }
+    }
+    drop(season);
     ctx.accounts.player.first_clears = ctx
         .accounts
         .player
@@ -144,7 +152,7 @@ pub struct ExitDungeon<'info> {
     pub purse: Account<'info, Purse>,
     #[account(mut, seeds = [INVENTORY_SEED, player.owner.as_ref()], bump)]
     pub inventory: AccountLoader<'info, Inventory>,
-    #[account(seeds = [SEASON_SEED], bump)]
+    #[account(mut, seeds = [SEASON_SEED], bump)]
     pub season: AccountLoader<'info, Season>,
     #[account(seeds = [WORLD_SEED], bump)]
     pub world: Account<'info, World>,

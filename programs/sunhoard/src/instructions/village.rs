@@ -24,13 +24,13 @@ const BLOCK_KEEP: u8 = PRISTINE | BOUND | DEMO;
 /// Placing a block moves it out of the pack into a built post, and settles
 /// the villager stockpile at the old warmth first.
 pub fn place_gem(ctx: Context<PlaceGem>, slot: u8) -> Result<()> {
-    let index = index(slot)?;
+    let index = index(slot, crate::state::INVENTORY_SLOTS)?;
     settle(&mut *ctx.accounts.village.load_mut()?, now()?)?;
     let (id, tone, grade, purity, pattern, keep) = {
         let inventory = ctx.accounts.inventory.load()?;
         let item = &inventory.slots[index];
         // Sealed shells stay in the Thawery; only a revealed block goes in a post.
-        if item.id == 0 || item.kind != 0 || item.flags & SEALED != 0 {
+        if item.id == 0 || item.kind != 0 || item.flags & (SEALED | crate::state::LISTED) != 0 {
             return err!(GameError::BadAmount);
         }
         (
@@ -56,7 +56,13 @@ pub fn place_gem(ctx: Context<PlaceGem>, slot: u8) -> Result<()> {
     // Keep pristine / bound / demo so take-back restores the same block.
     post.flags = (post.flags & POST_BUILT) | HAS_BLOCK | keep;
     let inventory = &mut *ctx.accounts.inventory.load_mut()?;
-    clear_slot(&mut inventory.slots[index]);
+    if inventory.slots[index].revealed_key != [0; 32] {
+        post.escrow_slot_plus_one = slot + 1;
+        inventory.slots[index].flags |= crate::state::LISTED;
+    } else {
+        post.escrow_slot_plus_one = 0;
+        clear_slot(&mut inventory.slots[index]);
+    }
     recount(inventory);
     village.warmth_x100 = warmth_of(village);
     Ok(())
@@ -64,9 +70,9 @@ pub fn place_gem(ctx: Context<PlaceGem>, slot: u8) -> Result<()> {
 
 /// Taking a block back frees the post and settles at the old warmth.
 pub fn take_gem(ctx: Context<TakeGem>, post: u8) -> Result<()> {
-    let index = index(post)?;
+    let index = index(post, crate::state::POST_SLOTS)?;
     settle(&mut *ctx.accounts.village.load_mut()?, now()?)?;
-    let (id, tone, grade, purity, pattern, keep) = {
+    let (id, tone, grade, purity, pattern, keep, reserved) = {
         let village = ctx.accounts.village.load()?;
         let found = &village.posts[index];
         if found.flags & HAS_BLOCK == 0 {
@@ -79,9 +85,15 @@ pub fn take_gem(ctx: Context<TakeGem>, post: u8) -> Result<()> {
             found.purity_bp,
             found.pattern,
             found.flags & BLOCK_KEEP,
+            found.escrow_slot_plus_one,
         )
     };
     let inventory = &mut *ctx.accounts.inventory.load_mut()?;
+    if let Some(index) = reserved.checked_sub(1) {
+        let block = inventory.slots.get_mut(usize::from(index)).ok_or(error!(GameError::BadAccount))?;
+        require!(block.id == id && block.flags & crate::state::LISTED != 0, GameError::BadAccount);
+        block.flags &= !crate::state::LISTED;
+    } else {
     let slot = super::stack::find_empty(inventory).ok_or(error!(GameError::Full))?;
     inventory.slots[slot].id = id;
     inventory.slots[slot].kind = 0;
@@ -91,9 +103,11 @@ pub fn take_gem(ctx: Context<TakeGem>, post: u8) -> Result<()> {
     inventory.slots[slot].pattern = pattern;
     inventory.slots[slot].quantity = 1;
     inventory.slots[slot].flags = keep;
+    }
     recount(inventory);
     let village = &mut *ctx.accounts.village.load_mut()?;
     village.posts[index].id = 0;
+    village.posts[index].escrow_slot_plus_one = 0;
     village.posts[index].flags = village.posts[index].flags & POST_BUILT;
     village.warmth_x100 = warmth_of(village);
     Ok(())
@@ -132,7 +146,7 @@ pub fn collect(ctx: Context<Collect>) -> Result<()> {
 
 /// Feeds the stockpile: villagers eat from it before they work.
 pub fn feed(ctx: Context<Feed>, slot: u8) -> Result<()> {
-    let index = index(slot)?;
+    let index = index(slot, crate::state::INVENTORY_SLOTS)?;
     let village = &mut *ctx.accounts.village.load_mut()?;
     let inventory = &mut *ctx.accounts.inventory.load_mut()?;
     let item = &mut inventory.slots[index];
@@ -155,36 +169,31 @@ pub fn feed(ctx: Context<Feed>, slot: u8) -> Result<()> {
 /// Rings the Hearth Bell: a free bed and a workstation, then one VRF roll.
 pub fn ring_bell(ctx: Context<RingBell>, discriminator: Vec<u8>) -> Result<()> {
     let now = now()?;
-    let (demo, owner, nonce) = {
+    let (owner, nonce) = {
         let village = &mut *ctx.accounts.village.load_mut()?;
         if village.beds == 0 || !village.workstations.iter().any(|station| *station != 0) {
             return err!(GameError::NotReady);
         }
-        if village.bell_flags & BELL_PENDING != 0 {
-            if now < village.bell_until {
-                return err!(GameError::NotReady);
-            }
-            village.bell_flags &= !BELL_PENDING;
-        }
+        require!(now >= village.bell_until, GameError::NotReady);
+        require!(village.villagers.iter().any(|v| v.id == 0), GameError::Full);
         let demo = ctx.accounts.season.load()?.flags & crate::state::DEMO_MODE != 0;
         let cooldown = if demo { 30 } else { 2 * 60 * 60 };
-        village.bell_until = now.saturating_add(cooldown);
+        village.bell_until = now.checked_add(cooldown).ok_or(error!(GameError::NotReady))?;
         village.bell_flags |= BELL_PENDING;
-        let nonce = village.bell_flags;
-        (demo, village.owner, nonce)
+        let nonce = u64::try_from(village.bell_until).map_err(|_| error!(GameError::NotReady))?;
+        (village.owner, nonce)
     };
-    let _ = demo;
     let ix = create_request_scoped_randomness_ix(RequestRandomnessParams {
         payer: ctx.accounts.payer.key(),
         oracle_queue: ctx.accounts.oracle_queue.key(),
         callback_program_id: crate::ID,
         callback_discriminator: discriminator,
-        caller_seed: caller_seed(&owner, u64::from(nonce)),
+        caller_seed: caller_seed(&owner, nonce),
         accounts_metas: Some(vec![
             meta(&ctx.accounts.player.key()),
             meta(&ctx.accounts.village.key()),
         ]),
-        callback_args: Some(vec![nonce]),
+        callback_args: Some(nonce.to_le_bytes().to_vec()),
         ..Default::default()
     });
     ctx.accounts
@@ -193,13 +202,12 @@ pub fn ring_bell(ctx: Context<RingBell>, discriminator: Vec<u8>) -> Result<()> {
 }
 
 /// The wanderer roll: 60% someone comes, 70% matching the workstation.
-pub fn bell_cb(ctx: Context<BellCb>, randomness: [u8; 32], nonce: u8) -> Result<()> {
+pub fn bell_cb(ctx: Context<BellCb>, randomness: [u8; 32], nonce: u64) -> Result<()> {
     let village = &mut *ctx.accounts.village.load_mut()?;
-    if village.bell_flags & BELL_PENDING == 0 {
+    if village.bell_flags & BELL_PENDING == 0 || u64::try_from(village.bell_until) != Ok(nonce) {
         return err!(GameError::NotReady);
     }
     village.bell_flags &= !BELL_PENDING;
-    let _ = nonce;
     let roll = crate::logic::roll::ppm_of(u32::from_le_bytes([
         randomness[0],
         randomness[1],
@@ -240,7 +248,7 @@ pub fn bell_cb(ctx: Context<BellCb>, randomness: [u8; 32], nonce: u8) -> Result<
 
 /// Recruiting costs a 15-Glint gift; the wanderer then stays.
 pub fn recruit(ctx: Context<Recruit>, slot: u8) -> Result<()> {
-    let index = index(slot)?;
+    let index = index(slot, crate::state::VILLAGER_SLOTS)?;
     let village = &mut *ctx.accounts.village.load_mut()?;
     let villager = &mut village.villagers[index];
     if villager.flags & WANDERER == 0 {
@@ -335,9 +343,9 @@ fn meta(pubkey: &Pubkey) -> SerializableAccountMeta {
     }
 }
 
-fn index(slot: u8) -> Result<usize> {
+fn index(slot: u8, capacity: usize) -> Result<usize> {
     let index = usize::from(slot);
-    if index >= crate::state::INVENTORY_SLOTS {
+    if index >= capacity {
         return err!(GameError::BadAmount);
     }
     Ok(index)
@@ -422,7 +430,7 @@ pub struct RingBell<'info> {
 pub struct BellCb<'info> {
     #[account(mut, seeds = [PLAYER_SEED, player.owner.as_ref()], bump)]
     pub player: Account<'info, Player>,
-    #[account(mut, seeds = [VILLAGE_SEED, village.load()?.owner.as_ref()], bump)]
+    #[account(mut, seeds = [VILLAGE_SEED, player.owner.as_ref()], bump)]
     pub village: AccountLoader<'info, Village>,
 }
 

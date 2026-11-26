@@ -106,10 +106,19 @@ fn apply_bountiful(qty: u32, bountiful_bp: u32) -> Result<u32, LogicError> {
     u32::try_from(grown).map_err(|_| LogicError::Overflow)
 }
 
+/// The public map stores tile coordinates; action positions use sixteenths of a tile.
+pub fn canonical_node(node: u8, zone: u8) -> Option<(u16, u16)> {
+    if zone != 0 {
+        return None;
+    }
+    let &(col, row) = crate::constants::GATHER_TILES.get(usize::from(node))?;
+    Some((col.checked_mul(16)?.checked_add(8)?, row.checked_add(1)?.checked_mul(16)?))
+}
+
 pub fn in_gather_range(px: u16, py: u16, nx: u16, ny: u16) -> bool {
-    let dx = i32::from(px) - i32::from(nx);
-    let dy = i32::from(py) - i32::from(ny);
-    dx * dx + dy * dy <= GATHER_RANGE_UNITS * GATHER_RANGE_UNITS
+    let dx = i64::from(px) - i64::from(nx);
+    let dy = i64::from(py) - i64::from(ny);
+    dx * dx + dy * dy <= i64::from(GATHER_RANGE_UNITS).pow(2)
 }
 
 /// The aurora is up for the first 10 minutes of every 30, on the shared unix clock.
@@ -251,6 +260,10 @@ mod tests {
 
     #[test]
     fn range_and_cooldown() {
+        assert_eq!(super::canonical_node(NODE_BIRCH, 0), Some((376, 240)));
+        assert_eq!(super::canonical_node(NODE_BIRCH, 1), None);
+        assert_eq!(super::canonical_node(u8::MAX, 0), None);
+        assert!(!in_gather_range(u16::MAX, u16::MAX, 0, 0));
         assert!(in_gather_range(0, 0, 24, 0));
         assert!(!in_gather_range(0, 0, 25, 0));
         assert!(in_gather_range(0, 0, 16, 16));

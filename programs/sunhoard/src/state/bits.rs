@@ -16,6 +16,9 @@ pub const HAS_EMBER: u8 = 1 << 2;
 pub const SALT_PENDING: u8 = 1 << 3;
 /// `settle_season` ran: the split is on its way to Solana, and the next season may open.
 pub const SETTLED: u8 = 1 << 4;
+pub const KILL_SNAPSHOT: u8 = 1 << 5;
+pub const KILL_DEMO: u8 = 1 << 6;
+pub const GLINT_AWARDS: u8 = 1 << 7;
 pub const GATHER_PENDING: u8 = 1 << 0;
 pub const CRAFT_PENDING: u8 = 1 << 0;
 pub const STRIKE_PENDING: u8 = 1 << 0;
@@ -27,6 +30,7 @@ pub const MODE_LAIR: u8 = 3;
 
 pub const CLEARED_T1: u8 = 1 << 0;
 pub const IS_KILLER: u8 = 1 << 1;
+pub const GLINT_CLAIMED: u8 = 1 << 2;
 pub const CLAIMED: u8 = 1 << 0;
 
 pub const QUIRK_REVEALED: u8 = 1 << 0;

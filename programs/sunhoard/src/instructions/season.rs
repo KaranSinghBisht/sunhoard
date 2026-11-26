@@ -12,11 +12,11 @@ use ephemeral_rollups_sdk::vrf::types::SerializableAccountMeta;
 use crate::errors::GameError;
 use crate::logic::numbers::{
     GLOAM_HP_DEMO, GLOAM_HP_LIVE, LONG_NIGHT_DEMO_SECS, LONG_NIGHT_LIVE_SECS, PHASE_LONG_NIGHT,
-    SALT_RELEASE_SECS,
+    PHASE_SPRING, SALT_RELEASE_SECS,
 };
 use crate::logic::sealed_hp;
 use crate::state::{
-    DamageSlot, Player, Season, World, DEMO_MODE, HAS_EMBER, HAS_KILLER, PLAYER_SEED,
+    DamageSlot, Payout, Player, Season, World, FIRST_SEASON_SEED, PAYOUT_SEED, GLINT_AWARDS, KILL_SNAPSHOT, KILL_DEMO, DEMO_MODE, HAS_EMBER, HAS_KILLER, PLAYER_SEED,
     SALT_PENDING, SEASON_SEED, SETTLED, WORLD_SEED, WYRM_NAME_LEN,
 };
 use bytemuck::Zeroable;
@@ -28,12 +28,14 @@ pub fn request(ctx: Context<StartSeason>, discriminator: Vec<u8>) -> Result<()> 
         let now = Clock::get()?.unix_timestamp;
         if season.season_number == 0 {
             first_request(season, now)?;
-        } else if season.flags & SETTLED == 0 || now < season.phase_ends {
-            // A later season opens only once the wyrm has fallen, the split has been
-            // settled, and Spring has run its course: that is the claim window. It
-            // leaves `phase_started` alone, so First Light is not opened twice. A
-            // dropped callback is simply asked again; only the first one is taken.
-            return err!(GameError::NotReady);
+        } else {
+            require!(season.phase == PHASE_SPRING && now >= season.phase_ends, GameError::NotReady);
+            if season.flags & HAS_KILLER != 0 {
+                let payout = ctx.accounts.payout.load()?;
+                require!(season.flags & SETTLED != 0
+                    && payout.season_number == u64::from(season.season_number)
+                    && now >= i64::from(payout.claim_until), GameError::NotReady);
+            }
         }
         season.flags |= SALT_PENDING;
     }
@@ -100,7 +102,7 @@ pub fn consume(ctx: Context<SaltCb>, randomness: [u8; 32]) -> Result<()> {
 /// A new night starts with an empty damage table and no killer. The pot and
 /// the wyrm's name carry over; an unused Ember Egg does not.
 fn clear_slayers(season: &mut Season) {
-    season.flags &= !(SALT_PENDING | HAS_KILLER | HAS_EMBER | SETTLED);
+    season.flags &= !(SALT_PENDING | HAS_KILLER | HAS_EMBER | SETTLED | GLINT_AWARDS | KILL_SNAPSHOT | KILL_DEMO);
     season.killer = Pubkey::default();
     season.ember_holder = Pubkey::default();
     season.total_damage = 0;
@@ -129,15 +131,17 @@ pub fn name_wyrm(ctx: Context<NameWyrm>, name: String) -> Result<()> {
     Ok(())
 }
 
-/// Each season seals its loot under its own salt. Four are kept, so a shell
-/// stays thawable for three seasons after the one that dropped it.
+/// Keep every initialized sealing root. Item ids domain-separate shells under
+/// a reused root; season randomness still independently determines wyrm HP.
 fn write_world(world: &mut World, randomness: [u8; 32], hp: u64, first: bool) {
     let epoch = if first {
         0
     } else {
         (usize::from(world.epoch) + 1) % world.salts.len()
     };
-    world.salts[epoch] = randomness;
+    if world.salts[epoch] == [0; 32] {
+        world.salts[epoch] = randomness;
+    }
     world.epoch = epoch as u8;
     world.hp = hp;
     world.max_hp = hp;
@@ -161,6 +165,8 @@ pub struct StartSeason<'info> {
     pub season: AccountLoader<'info, Season>,
     #[account(mut, seeds = [WORLD_SEED], bump)]
     pub world: Account<'info, World>,
+    #[account(seeds = [PAYOUT_SEED, &FIRST_SEASON_SEED], bump)]
+    pub payout: AccountLoader<'info, Payout>,
     /// CHECK: The VRF queue. The VRF program checks it.
     #[account(mut)]
     pub oracle_queue: UncheckedAccount<'info>,

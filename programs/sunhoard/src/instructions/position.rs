@@ -15,6 +15,9 @@ pub fn handle(ctx: Context<PostPosition>, x: u16, y: u16, zone: u8, facing: u8) 
     let player = &mut ctx.accounts.player;
     let dt = now.saturating_sub(player.moved_at);
     let changed = zone != player.zone;
+    if changed && zone == 0 && (x, y) != (crate::logic::numbers::MEADOW_SPAWN_X, crate::logic::numbers::MEADOW_SPAWN_Y) {
+        return err!(GameError::NotReady);
+    }
     if !move_allowed(player.x, player.y, x, y, dt, changed) {
         return err!(GameError::NotReady);
     }

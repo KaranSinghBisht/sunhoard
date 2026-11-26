@@ -16,11 +16,12 @@ use sha2::{Digest, Sha256};
 use super::crank_ix;
 use super::dungeon::weapon_of;
 use super::lair_io::{read_lair, write_lair};
-use super::lair_tally::{ensure_row, flush, heal};
+use super::lair_tally::{can_participate, flush, heal, raid_open};
 use crate::errors::GameError;
 use crate::logic::lair::{open_lair, scoopable, step_lair, FLUSH_STEPS, GLARE_MIN_HUNDREDTHS};
 use crate::logic::numbers::{FIGHT_ITERATIONS, TICK_MILLIS, TICK_MIN_SLOTS};
 use crate::logic::Weapon;
+use crate::logic::numbers::PHASE_LONG_NIGHT;
 use crate::state::{
     Arena, Inventory, Player, Purse, Season, World, ARENA_SEED, INVENTORY_SEED, MODE_IDLE,
     MODE_LAIR, MODE_WAIT, PLAYER_SEED, PURSE_SEED, SEASON_SEED, WORLD_SEED,
@@ -36,7 +37,9 @@ pub fn enter(ctx: Context<EnterLair>, discriminator: Vec<u8>) -> Result<()> {
     }
     let now = Clock::get()?.unix_timestamp;
     let age = wallet_age(&ctx.accounts.player, now);
-    let cleared_t1 = ctx.accounts.player.first_clears > 0;
+    let season = ctx.accounts.season.load()?;
+    require!(season.phase == PHASE_LONG_NIGHT && season.season_number != 0
+        && can_participate(&season, &ctx.accounts.player.owner), GameError::NotReady);
     let (owner, nonce, task) = {
         let arena = &mut ctx.accounts.arena.load_mut()?;
         if arena.mode != MODE_IDLE {
@@ -51,14 +54,10 @@ pub fn enter(ctx: Context<EnterLair>, discriminator: Vec<u8>) -> Result<()> {
         if glints > warmest_before {
             world.warmest = glints;
         }
-        // The wallet's age and its cellar clear ride on its damage row so the
-        // payout can check them.
-        ensure_row(
-            &mut *ctx.accounts.season.load_mut()?,
-            &arena.owner,
-            age,
-            cleared_t1,
-        )?;
+        arena.raid_season = season.season_number;
+        arena.raid_cleared = u8::from(ctx.accounts.player.cleared_season == season.season_number);
+        // Even the capped age exceeds both payout age thresholds.
+        arena.raid_age.copy_from_slice(&age.min(0xff_ffff).to_le_bytes()[..3]);
         let nonce = arena
             .run_nonce
             .checked_add(1)
@@ -91,6 +90,7 @@ pub fn enter(ctx: Context<EnterLair>, discriminator: Vec<u8>) -> Result<()> {
         arena.weapon_brutal = u16::try_from(weapon.brutal_bp).unwrap_or(u16::MAX);
         (arena.owner, nonce, task)
     };
+    drop(season);
     let ix = create_request_scoped_randomness_ix(RequestRandomnessParams {
         payer: ctx.accounts.payer.key(),
         oracle_queue: ctx.accounts.oracle_queue.key(),
@@ -145,6 +145,15 @@ pub fn tick(ctx: Context<TickLair>) -> Result<()> {
     if arena.mode != MODE_LAIR {
         return Ok(());
     }
+    let season = ctx.accounts.season.load()?;
+    if !raid_open(arena, &season) || ctx.accounts.world.hp == 0 || !can_participate(&season, &arena.owner) {
+        arena.mode = MODE_IDLE;
+        arena.lair = 0;
+        arena.unflushed_damage = 0;
+        return Ok(());
+    }
+    let pot = season.pot;
+    drop(season);
     if arena.last_slot != 0 && slot < arena.last_slot.saturating_add(TICK_MIN_SLOTS) {
         return Ok(());
     }
@@ -160,7 +169,6 @@ pub fn tick(ctx: Context<TickLair>) -> Result<()> {
         keen_ppm: u32::from(arena.weapon_keen),
         brutal_bp: u32::from(arena.weapon_brutal),
     };
-    let pot = ctx.accounts.season.load()?.pot;
     let seed = arena.seed;
     let mut sim = read_lair(arena);
     let out = step_lair(&mut sim, intent, &seed, &weapon, pot)
@@ -241,6 +249,7 @@ pub fn catch(ctx: Context<CatchSpark>) -> Result<()> {
     let index = scoopable(&sim, arena.player_x, arena.player_y).ok_or(error!(GameError::NotReady))?;
     let value = {
         let season = &mut *ctx.accounts.season.load_mut()?;
+        require!(raid_open(arena, season) && can_participate(season, &arena.owner), GameError::NotReady);
         let value = u64::from(sim.spark_value).min(season.pot);
         season.pot = season.pot.saturating_sub(value);
         value

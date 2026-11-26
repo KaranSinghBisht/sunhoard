@@ -1,6 +1,7 @@
 //! Chain instruction handlers. Each one calls `crate::logic` for the rules.
 
 pub mod anvil;
+pub mod awards;
 mod committed;
 pub mod crack;
 pub mod craft;
