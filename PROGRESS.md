@@ -1,5 +1,5 @@
 # Progress
-Milestone: live on devnet, the whole spine proven · Updated: Thu Nov 26, 10:45 AM IST
+Milestone: live on devnet, the whole spine proven · Updated: Thu Nov 26, 11:15 AM IST
 
 ## Live on devnet (Thu Nov 26) ✅
 - Deployed by the Claude session with the student's go-ahead. Program `FxqDh8g5KcZbEzg4AJsX5yUit6A63BC5PoncdWjtBKqS`,
@@ -25,6 +25,11 @@ Milestone: live on devnet, the whole spine proven · Updated: Thu Nov 26, 10:45 
 - Seasons can restart: `start_season` is allowed again once Old Gloam has fallen (`admin.ts next`). The damage
   table, killer and HP reset, the pot and the wyrm's name carry, and the one payout record is overwritten by the
   next settle. `admin.ts fund <sol>` tops up the vault. MagicSVM `l3` covers a second season.
+- Review pass (a separate reviewer agent, 11 AM) ✅ fixed: the next season needs `settle` first and the end of Spring
+  (5 minutes in demo, a day live), which is the claim window; `record_payout` refuses a season with no kill;
+  `admin.ts next` checks the payout is on Solana. Upgraded on devnet and checked: `next` is refused on the open
+  season, and a chop still lands. Left as known limits: a shell older than four seasons cannot be thawed and its
+  fee is still charged; damage from a visit that straddles a season change lands in the new table.
 - `deploy-devnet.sh` now resumes a dropped upload from a kept buffer key and grows the program account when needed.
 
 ## ❓ answers (from HANDOFF.md §9) ✅ Thu Nov 26
