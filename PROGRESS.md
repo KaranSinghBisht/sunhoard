@@ -1,4 +1,31 @@
 # Progress
+Milestone: live on devnet, first live run · Updated: Thu Nov 26, 3:30 AM IST
+
+## Live on devnet (Thu Nov 26) ✅
+- Deployed by the Claude session with the student's go-ahead. Program `FxqDh8g5KcZbEzg4AJsX5yUit6A63BC5PoncdWjtBKqS`,
+  upgrade authority the admin key. `init-game.ts` ran: shared accounts created, delegated to the TEE validator,
+  permissions set, season 1 open in demo mode. The world clock crank is **not** scheduled on purpose: in demo mode
+  it ends the Long Night after 10 minutes. Schedule it only for a recording that wants that.
+- Live run with `corepack yarn live <step>` in `client/` (drives the page's own chain code with a throwaway keeper
+  whose key is in `.secrets/`): sign-up, both delegations, join, session key, `post_position`, `gather` + VRF
+  callback, `merchant_sell`, `equip`, `crack` → `crack_reveal`, `enter_dungeon` + 100 ms crank + `arena_input` +
+  `exit_dungeon`, `enter_lair` + crank + `lair_input` + damage flushed to Season + `exit_lair` all landed ✅.
+  Round trip is 250–290 ms from India, confirmation polling included.
+- Not yet run live ❓: the kill, `settle_season` → `record_payout` (the Magic Action) → `claim`; the Coldfair with
+  two wallets; the anvil; the barn; the page itself with a browser wallet.
+- Bugs the live run found, fixed in the client: the 25 ms status poll got 429 from the public devnet RPC, so
+  sign-up never confirmed; every program refusal read "The wallet said no." (now the program's own message).
+- Seasons can restart: `start_season` is allowed again once Old Gloam has fallen (`admin.ts next`). The damage
+  table, killer and HP reset, the pot and the wyrm's name carry, and the one payout record is overwritten by the
+  next settle. `admin.ts fund <sol>` tops up the vault. MagicSVM `l3` covers a second season.
+- `deploy-devnet.sh` now resumes a dropped upload from a kept buffer key and grows the program account when needed.
+
+## ❓ answers (from HANDOFF.md §9) ✅ Thu Nov 26
+- VRF works on the TEE validator: `salt_cb` and `gather_cb` arrived within about a second.
+- A stranger's token reads World as null; Season is public as designed.
+- One 100 ms crank per arena ticks at about 13 steps a second. Several at once is untested.
+
+## Earlier
 Milestone: audit bug-fix pass · Updated: Mon Nov 23, 12:57 AM IST
 
 ## Done
@@ -15,7 +42,7 @@ Milestone: audit bug-fix pass · Updated: Mon Nov 23, 12:57 AM IST
 
 ## Blocked, or needs the student
 - Restart Cursor so its terminals use the new PATH.
-- Deploy rent is 7.70 SOL for the current `.so`; aim for ~16 SOL on the admin key (holds rent twice). Has 5 ✅. Not deployed.
+- Deployed Thu Nov 26 ✅. Rent was 5.85 SOL; the admin key holds about 8 SOL.
 - `ER_URL` for the devnet rollup, in `scripts/.env`. The local MagicSVM run does not need it.
 - Committed and pushed on the student's request, Sat Nov 21, 7:45 PM IST ✅: six commits on `main` at `https://github.com/KaranSinghBisht/sunhoard` (private). The submission checklist in `blitz/README.md` wants the repo public and accessible; the student flips it before submitting. The L1–L3 work plus this audit are uncommitted until the student approves the next commit.
 
@@ -30,8 +57,6 @@ Milestone: audit bug-fix pass · Updated: Mon Nov 23, 12:57 AM IST
 - IDL at `target/idl/sunhoard.json`, copied to `client/src/gen/idl/sunhoard.json`. It lists the M1–L3 instructions through `demo_grant` and does not list `debug_grant` or `debug_kill`.
 - `logic` signatures in `progress/D.md`, including `open_room`, `step_fight`, `room_clear`, `step_lair`, `plan_strike`, `tick_world`, and `stone_weapon`.
 
-## ❓ answers (from HANDOFF.md §9)
-- Unanswered. They need the devnet TEE. The local MagicSVM run is not that test.
 
 ## Test evidence (command and result)
 - Mon Nov 23, 12:57 AM IST ✅: `cargo +1.89.0 test --lib` 66 passed; `cargo +1.93.0 test --manifest-path tests-magicsvm-rs/Cargo.toml` 4 passed in 155 s; `corepack yarn typecheck` exit 0; `corepack yarn test` 38 passed. Not deployed.
