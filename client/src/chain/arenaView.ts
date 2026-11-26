@@ -176,7 +176,7 @@ function body(value: unknown): Fighter | null {
 
 function decode(program: Program, data: Buffer): Record<string, unknown> | null {
   try {
-    return program.coder.accounts.decode("Arena", data) as Record<string, unknown>;
+    return program.coder.accounts.decode("arena", data) as Record<string, unknown>;
   } catch {
     return null;
   }

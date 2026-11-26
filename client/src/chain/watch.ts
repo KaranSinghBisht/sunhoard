@@ -12,6 +12,7 @@ import { useVillage } from "../ui/village";
 import { useWorld, type PresenceView, type SlayerView } from "../ui/world";
 import { arenaPhase } from "./arenaView";
 import { asBytes, asNumber, field } from "./bytes";
+import { log } from "./log";
 import { ownedPda, sharedPda } from "./pdas";
 
 /** Season flag: demo mode, killing blow, Ember Egg. */
@@ -363,10 +364,13 @@ export function revealedKeyAt(program: Program, data: Buffer, slot: number): Uin
   return key;
 }
 
+/** Anchor's client names accounts in camelCase ("priceBoard"), whatever the IDL spells. */
 function decode(program: Program, name: string, data: Buffer): Record<string, unknown> | null {
+  const camel = name.charAt(0).toLowerCase() + name.slice(1);
   try {
-    return program.coder.accounts.decode(name, data) as Record<string, unknown>;
-  } catch {
+    return program.coder.accounts.decode(camel, data) as Record<string, unknown>;
+  } catch (err) {
+    log(`could not read ${name}: ${err instanceof Error ? err.message.slice(0, 80) : "unknown"}`);
     return null;
   }
 }

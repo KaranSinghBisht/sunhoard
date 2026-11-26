@@ -7,10 +7,11 @@ import { StrictMode, useMemo } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import { BASE_RPC } from "./chain/config";
+import { GuestWalletAdapter } from "./chain/guestWallet";
 import "./styles.css";
 
 function Root() {
-  const wallets = useMemo(() => [new PhantomWalletAdapter(), new SolflareWalletAdapter()], []);
+  const wallets = useMemo(() => [new PhantomWalletAdapter(), new SolflareWalletAdapter(), new GuestWalletAdapter()], []);
   return (
     <ConnectionProvider endpoint={BASE_RPC}>
       <WalletProvider wallets={wallets} autoConnect>

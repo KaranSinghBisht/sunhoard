@@ -5,9 +5,11 @@ import { useEffect, useRef } from "react";
 import type { PublicKey } from "@solana/web3.js";
 import { authToken, signWithSecret } from "../chain/auth";
 import { TEE_RPC } from "../chain/config";
+import { GUEST_WALLET_NAME } from "../chain/guestWallet";
 import { rollupEndpoint } from "../chain/explorer";
 import { playerMessage } from "../chain/format";
 import { enterMeadow, walletSigner } from "../chain/login";
+import { ownedPda } from "../chain/pdas";
 import { inRange, nextPost, type Pace } from "../chain/pace";
 import { chopTree, postMove } from "../chain/play";
 import { openProgram } from "../chain/program";
@@ -19,6 +21,9 @@ import { setBridge, type MoveReport } from "../game/bridge";
 import { createGame } from "../game/createGame";
 import { bindGame } from "../game/stage";
 import { useHud } from "./store";
+
+/** What a new wallet needs before sign-up: rent for its accounts, the delegations and the session key. */
+const SIGN_UP_LAMPORTS = 80_000_000;
 
 interface Play {
   rollup: Connection;
@@ -34,7 +39,7 @@ export function Meadow({ zoom, gate: gateOpen }: { zoom: number; gate: boolean }
   const host = useRef<HTMLDivElement>(null);
   const play = useRef<Play | null>(null);
   const { connection } = useConnection();
-  const { publicKey, signTransaction, signMessage } = useWallet();
+  const { publicKey, signTransaction, signMessage, select } = useWallet();
   const sessionReady = useHud((state) => state.sessionReady);
   const busy = useHud((state) => state.busy);
   const game = useRef<ReturnType<typeof createGame> | null>(null);
@@ -79,6 +84,12 @@ export function Meadow({ zoom, gate: gateOpen }: { zoom: number; gate: boolean }
     hud.setBusy(true);
     hud.setNote("");
     try {
+      // Sign-up pays rent for six accounts; say so plainly instead of failing at the first transaction.
+      const joined = await connection.getAccountInfo(ownedPda("player", publicKey));
+      if (!joined && (await connection.getBalance(publicKey)) < SIGN_UP_LAMPORTS) {
+        hud.setNote(uiText("needSol"));
+        return;
+      }
       const wallet = walletSigner(publicKey, signTransaction);
       const signer = openSigner();
       const linkToken = await authToken(signer.signer.publicKey, signWithSecret(signer.signer.secretKey));
@@ -120,6 +131,9 @@ export function Meadow({ zoom, gate: gateOpen }: { zoom: number; gate: boolean }
     <div className="gate">
       <p>{uiText("gate")}</p>
       <WalletMultiButton />
+      <button type="button" className="quiet" onClick={() => select(GUEST_WALLET_NAME)}>
+        {uiText("guest")}
+      </button>
     </div>
   ) : (
     <div className="gate">
