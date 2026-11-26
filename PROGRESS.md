@@ -1,5 +1,5 @@
 # Progress
-Milestone: live on devnet, first live run · Updated: Thu Nov 26, 3:30 AM IST
+Milestone: live on devnet, the whole spine proven · Updated: Thu Nov 26, 10:45 AM IST
 
 ## Live on devnet (Thu Nov 26) ✅
 - Deployed by the Claude session with the student's go-ahead. Program `FxqDh8g5KcZbEzg4AJsX5yUit6A63BC5PoncdWjtBKqS`,
@@ -11,10 +11,17 @@ Milestone: live on devnet, first live run · Updated: Thu Nov 26, 3:30 AM IST
   callback, `merchant_sell`, `equip`, `crack` → `crack_reveal`, `enter_dungeon` + 100 ms crank + `arena_input` +
   `exit_dungeon`, `enter_lair` + crank + `lair_input` + damage flushed to Season + `exit_lair` all landed ✅.
   Round trip is 250–290 ms from India, confirmation polling included.
-- Not yet run live ❓: the kill, `settle_season` → `record_payout` (the Magic Action) → `claim`; the Coldfair with
-  two wallets; the anvil; the barn; the page itself with a browser wallet.
-- Bugs the live run found, fixed in the client: the 25 ms status poll got 429 from the public devnet RPC, so
-  sign-up never confirmed; every program refusal read "The wallet said no." (now the program's own message).
+- Also live ✅ (10:35 AM): a two-wallet Coldfair sale with the fee split, `craft`, an anvil `strike` with its VRF
+  roll, a real kill by two keepers, `settle_season` → the Magic Action → the Payout record on Solana → both claims
+  (0.04 SOL each), then `admin.ts next` opened season 2. Signatures are in `../SUBMISSION.md`.
+- The page itself was driven against devnet with the new guest key: enter, HUD, pack, the chain cellar, Coldfair and
+  barn panels ✅. Not run live ❓: Phantom itself, the barn's bell and villagers, the chest after room six, more than
+  two players, and the Spring visuals by eye.
+- Bugs the live run found, all fixed in the client: the 25 ms status poll got 429 from the public devnet RPC, so
+  sign-up never confirmed; every program refusal read "The wallet said no."; **every account decode used the IDL's
+  "Player" spelling where Anchor's client wants "player", and the error was swallowed, so the HUD, pack, market and
+  fights never updated**; three copies of `wallet-adapter-react` put the wallet modal and the game in different
+  contexts, so picking a wallet did nothing; the anvil's fodder was sent as an array where the IDL wants bytes.
 - Seasons can restart: `start_season` is allowed again once Old Gloam has fallen (`admin.ts next`). The damage
   table, killer and HP reset, the pot and the wyrm's name carry, and the one payout record is overwritten by the
   next settle. `admin.ts fund <sol>` tops up the vault. MagicSVM `l3` covers a second season.
@@ -59,5 +66,9 @@ Milestone: audit bug-fix pass · Updated: Mon Nov 23, 12:57 AM IST
 
 
 ## Test evidence (command and result)
+- Thu Nov 26, 10:40 AM IST ✅: `cargo +1.89.0 test --lib` 66 passed; `cargo +1.93.0 test --manifest-path
+  tests-magicsvm-rs/Cargo.toml` 4 passed (`l3` now opens a second season); `corepack yarn typecheck` exit 0;
+  `corepack yarn test` 41 passed; `corepack yarn build` built. Deployed and upgraded on devnet; `.so` 1,151,560 bytes
+  in a 1,171,000-byte program account.
 - Mon Nov 23, 12:57 AM IST ✅: `cargo +1.89.0 test --lib` 66 passed; `cargo +1.93.0 test --manifest-path tests-magicsvm-rs/Cargo.toml` 4 passed in 155 s; `corepack yarn typecheck` exit 0; `corepack yarn test` 38 passed. Not deployed.
 - Earlier: `anchor build` exit 0, `.so` 1,515,448 bytes (default binary, no debug instructions).

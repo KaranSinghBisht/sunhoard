@@ -32,6 +32,14 @@ Milestone: L2/L3 client panels land · Updated: Mon Nov 23, 12:57 AM IST
 - The fight mirror now carries the weapon (material, rarity, Keen, Brutal), so the cellar and Crater predictions match the chain's damage numbers for geared keepers.
 - `yarn typecheck` passes. Vitest: 33 passed. `yarn build` builds.
 
+- Thu Nov 26 ✅ first live runs. `client/scripts/live.ts` (`corepack yarn live <step>`) drives the chain layer with
+  a throwaway keeper. Fixed: base-layer polling (429), refusals shown as wallet refusals, account decoding by
+  Anchor's camelCase names (the HUD and every panel were blank on chain), duplicated `wallet-adapter-react` (now one
+  copy, pinned in `resolutions`), the anvil's fodder encoding. Added: a guest key wallet (`chain/guestWallet.ts`, a
+  throwaway devnet key in `localStorage`) with a "Use a guest key" button, a 0.1 SOL pre-check before sign-up, and
+  the thaw fee on the Thaw panel. `strings.ui.json` gained `needSol`, `guest`, `thawFee`, `thawShort`; `refused`
+  changed. Vitest: 41 passed.
+
 ## Doing
 - A: see `progress/A.md`. Devnet deploy is waiting on the student.
 - B: L2 client (market, anvil, lair scene) and L3 (barn, lantern posts, demo).

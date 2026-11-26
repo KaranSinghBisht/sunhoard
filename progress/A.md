@@ -27,6 +27,14 @@ Milestone: L2 and L3 run in MagicSVM · Updated: Mon Nov 23, 12:57 AM IST
 - Program id: `FxqDh8g5KcZbEzg4AJsX5yUit6A63BC5PoncdWjtBKqS`.
 - The program keypair is `~/.config/solana/sunhoard-program.json`, outside the repo, mode 600. A copy sits in `target/deploy/` for Anchor. `target/` is gitignored. If `target/` is deleted, copy the outside keypair back before the next build.
 
+- Thu Nov 26 ✅ deployed and upgraded on devnet; `init-game.ts` ran; season 1 was killed, settled and claimed live,
+  and season 2 is open. `start_season` may be asked again once the season has a killer: `salt_cb` adds one to the
+  season number, clears the damage table, the killer and the Ember flags, rotates `world.epoch` through the four
+  salts and resets Old Gloam's HP. The pot and the wyrm's name carry. `record_payout` reuses the one Payout account:
+  it writes a season once and a later season overwrites it; an unclaimed share stays in the vault. `admin.ts` gained
+  `next` and `fund`; `deploy-devnet.sh` resumes a dropped upload and extends the program account. §9 answers are in
+  `PROGRESS.md`.
+
 ## Doing
 - A: bug-fix audit Mon Nov 23 (see Done). Deploy still waiting on the student.
 - B: thaw verify fix landed with the audit.
