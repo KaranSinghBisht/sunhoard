@@ -8,12 +8,15 @@ import { useWorld } from "./world";
 
 /** The program takes A–Z and spaces, 16 at most; the same rule is applied here before anything is sent. */
 const NAME_RULE = /^[A-Z ]{1,16}$/;
+/** The season's phase number for Spring, as `logic/numbers.rs` has it. */
+const SPRING = 2;
 
 /** The killing blow wins the Ember Egg, and whoever holds it names the next season's wyrm. */
 export function EmberEgg({ owner }: { owner: string }) {
   const holder = useWorld((state) => state.emberHolder);
   const hasEmber = useWorld((state) => state.hasEmber);
   const wyrmName = useWorld((state) => state.wyrmName);
+  const spring = useWorld((state) => state.phase === SPRING);
   const busy = useHud((state) => state.busy);
   const [name, setName] = useState("");
   const typed = name.trim().toUpperCase();
@@ -49,9 +52,10 @@ export function EmberEgg({ owner }: { owner: string }) {
       </div>
     );
   }
+  // In Spring the name is for the wyrm to come; once the season turns, that wyrm is the one in the Crater.
   return wyrmName ? (
     <small>
-      {uiText("wyrmNamed")} {wyrmName}
+      {uiText(spring ? "wyrmNamed" : "wyrmNow")} {wyrmName}
     </small>
   ) : null;
 }
