@@ -103,6 +103,7 @@ function nextIx(game: Game, admin: PublicKey): Promise<TransactionInstruction> {
     .accountsPartial({
       admin,
       season: at.season,
+      payout: payoutPda(1),
       world: at.world,
       oracleQueue: QUEUE,
       programIdentity: at.identity,

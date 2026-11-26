@@ -160,6 +160,7 @@ async function openSeason(er: Game, admin: ReturnType<typeof adminKeypair>, at: 
     .accountsPartial({
       admin: admin.publicKey,
       season: at.season,
+      payout: payoutPda(1),
       world: at.world,
       oracleQueue: QUEUE,
       programIdentity: at.identity,
