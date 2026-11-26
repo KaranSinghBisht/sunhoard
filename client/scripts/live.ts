@@ -11,6 +11,7 @@
  *   corepack yarn live cellar     # one room on the 100 ms crank
  *   corepack yarn live crater     # hit Old Gloam for a few seconds
  *   corepack yarn live claim      # claim the keeper's share on Solana
+ *   LIVE_ACT=sell LIVE_SLOT=3 corepack yarn live act   # one pack action
  *
  * `LIVE_KEEPER=2` picks a second keeper. Keys live in `game/.secrets/` (gitignored)
  * and are funded with devnet SOL from the admin key.
@@ -35,6 +36,7 @@ import {
   keypairSigner,
   leaveCrater,
   leaveRoom,
+  playAction,
   postMove,
   thawShell,
 } from "../src/chain/play";
@@ -186,18 +188,36 @@ async function cellar(keeper: Keeper): Promise<void> {
   say(`left: ${await arenaLine(keeper)}`);
 }
 
+/** Walks at Old Gloam and swings, visit after visit, until `LIVE_SECONDS` run out or the wyrm falls. */
 async function crater(keeper: Keeper): Promise<void> {
   const { rollup, session, wallet, link } = keeper;
-  await enterCrater(rollup, session.signer, wallet.publicKey, session.token, link);
-  const seconds = Number(process.env.LIVE_SECONDS ?? "8");
-  for (let beat = 0; beat < seconds * 2; beat += 1) {
-    if (beat % 2 === 0) await aimLair(rollup, session.signer, wallet.publicKey, session.token, link, 0, -1, 1, 0);
+  const owner = wallet.publicKey;
+  const until = Date.now() + Number(process.env.LIVE_SECONDS ?? "8") * 1000;
+  while (Date.now() < until) {
+    await enterCrater(rollup, session.signer, owner, session.token, link);
+    for (let beat = 0; Date.now() < until; beat += 1) {
+      const arena = await decoded(keeper, "arena", ownedPda("arena", owner));
+      if (Number(arena?.mode) !== 3) break;
+      const gloam = (arena?.monsters as Array<{ body: { x: number; y: number } }>)[0].body;
+      const gapX = gloam.x - Number(arena?.playerX);
+      const gapY = gloam.y - Number(arena?.playerY);
+      const close = gapX * gapX + gapY * gapY <= 100;
+      const dx = close ? 0 : Math.sign(gapX);
+      const dy = close ? 0 : Math.sign(gapY);
+      // A swing is spent once it lands, so the intent goes out again on every beat.
+      const sent = await aimLair(rollup, session.signer, owner, session.token, link, dx, dy, 1, 0).then(
+        () => true,
+        () => false,
+      );
+      if (!sent) break;
+      if (beat % 16 === 0) say(`${await arenaLine(keeper)} · hits ${String(arena?.lairHits)}`);
+      await pause(250);
+    }
     const season = await decoded(keeper, "season", sharedPda("season"));
-    say(`${beat * 500} ms: ${await arenaLine(keeper)} · total damage ${String(season?.totalDamage)}`);
-    await pause(500);
+    say(`visit over · total damage ${String(season?.totalDamage)} · phase ${String(season?.phase)} · flags ${String(season?.flags)}`);
+    await leaveCrater(rollup, session.signer, owner, session.token, link).catch((err: unknown) => say(`leave: ${String(err)}`));
+    if ((Number(season?.flags) & 2) !== 0) return say("Old Gloam has fallen");
   }
-  await leaveCrater(rollup, session.signer, wallet.publicKey, session.token, link);
-  say(`left: ${await arenaLine(keeper)}`);
 }
 
 async function claim(keeper: Keeper): Promise<void> {
@@ -205,6 +225,15 @@ async function claim(keeper: Keeper): Promise<void> {
   const before = await base.getBalance(keeper.wallet.publicKey);
   await claimShare(base, keypairSigner(keeper.wallet));
   say(`claimed ${((await base.getBalance(keeper.wallet.publicKey)) - before) / LAMPORTS_PER_SOL} SOL`);
+}
+
+/** One pack action: `LIVE_ACT=sell|buy|craft|eat|equip LIVE_SLOT=<slot, good or recipe>`. */
+async function act(keeper: Keeper): Promise<void> {
+  const { rollup, session, wallet, link } = keeper;
+  const kind = (process.env.LIVE_ACT ?? "sell") as "craft" | "sell" | "buy" | "eat" | "equip";
+  await playAction(rollup, session.signer, wallet.publicKey, session.token, link, kind, Number(process.env.LIVE_SLOT ?? "0"));
+  const purse = await decoded(keeper, "purse", ownedPda("purse", wallet.publicKey));
+  say(`purse: ${String(purse?.glints)} Glint hundredths · pack: ${await wood(keeper)}`);
 }
 
 /** Sends one instruction with preflight on and prints the rollup's own refusal. A debugging aid. */
@@ -219,7 +248,7 @@ async function raw(keeper: Keeper): Promise<void> {
   say(typeof sim === "string" ? sim.slice(0, 600) : JSON.stringify(sim.value).slice(0, 1500));
 }
 
-const STEPS: Record<string, (keeper: Keeper) => Promise<void>> = { enter, gather, thaw, cellar, crater, claim, raw };
+const STEPS: Record<string, (keeper: Keeper) => Promise<void>> = { enter, gather, thaw, cellar, crater, claim, act, raw };
 
 async function main(): Promise<void> {
   const step = process.argv[2] ?? "enter";

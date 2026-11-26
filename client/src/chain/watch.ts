@@ -329,6 +329,7 @@ function shellsOf(inventory: Record<string, unknown> | null): ShellView[] {
       flags,
       commitment: asBytes(field(record, "commitment")) ?? new Uint8Array(),
       key: asBytes(field(record, "revealedKey", "revealed_key")) ?? new Uint8Array(),
+      size: asNumber(field(record, "shellSize", "shell_size")) ?? 0,
     });
   });
   return shells;
