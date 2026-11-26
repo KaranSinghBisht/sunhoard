@@ -44,7 +44,8 @@ import {
   postMove,
   thawShell,
 } from "../src/chain/play";
-import { crackIx, openProgram } from "../src/chain/program";
+import { crackIx, claimGlintsIx, openProgram } from "../src/chain/program";
+import { sendInstruction } from "../src/chain/send";
 import { createSession, type LiveSession } from "../src/chain/session";
 import { useTxLog } from "../src/chain/txlog";
 
@@ -190,7 +191,10 @@ async function thaw(keeper: Keeper): Promise<void> {
   const { rollup, session, wallet, link } = keeper;
   const pack = await decoded(keeper, "inventory", ownedPda("inventory", wallet.publicKey));
   const slots = (pack?.slots ?? []) as Array<Record<string, unknown>>;
-  say(`slots: ${JSON.stringify(slots.slice(0, Number(pack?.count ?? 0)))}`.slice(0, 900));
+  // Slots are sparse, so each used one is named by its own number.
+  slots.forEach((item, index) => {
+    if (Number(item.quantity) > 0) say(`slot ${index}: kind ${String(item.kind)} ×${String(item.quantity)} flags ${String(item.flags)}`);
+  });
   const slot = Number(process.env.LIVE_SLOT ?? "-1");
   if (slot < 0) return say("set LIVE_SLOT to the sealed shell's slot to thaw it");
   await thawShell(rollup, session.signer, wallet.publicKey, session.token, link, slot);
@@ -278,20 +282,24 @@ async function fair(keeper: Keeper): Promise<void> {
   const { rollup, session, wallet, link } = keeper;
   if (process.env.LIVE_FAIR === "buy") {
     const seller = new PublicKey(process.env.LIVE_SELLER ?? "");
-    const listing = Number(process.env.LIVE_LISTING ?? "0");
-    const revision = process.env.LIVE_REVISION;
-    const price = process.env.LIVE_PRICE;
-    if (!revision || !price || !/^\d+$/.test(revision) || !/^\d+$/.test(price)) {
-      throw new Error("Set LIVE_REVISION and LIVE_PRICE (hundredths) to the displayed quote.");
-    }
-    await buyListing(rollup, session.signer, wallet.publicKey, session.token, link, listing, seller, revision, price);
+    const index = Number(process.env.LIVE_LISTING ?? "0");
+    // The buyer names the revision and price it saw; the program refuses anything else.
+    const seen = (await listings(keeper))[index];
+    await buyListing(rollup, session.signer, wallet.publicKey, session.token, link, index, seller, String(seen.revision), String(seen.price));
   } else {
     const slot = Number(process.env.LIVE_SLOT ?? "0");
     await listItem(rollup, session.signer, wallet.publicKey, session.token, link, slot, process.env.LIVE_PRICE ?? "1000");
+    const mine = (await listings(keeper)).findIndex((entry) => String(entry.seller) === wallet.publicKey.toBase58());
+    say(`listed as listing ${mine}`);
   }
   const purse = await decoded(keeper, "purse", ownedPda("purse", wallet.publicKey));
   const season = await decoded(keeper, "season", sharedPda("season"));
   say(`purse ${String(purse?.glints)} · pot ${String(season?.pot)} · burned ${String(season?.burned)} · pack ${await wood(keeper)}`);
+}
+
+async function listings(keeper: Keeper): Promise<Array<Record<string, unknown>>> {
+  const market = await decoded(keeper, "market", sharedPda("market"));
+  return (market?.listings ?? []) as Array<Record<string, unknown>>;
 }
 
 /** The anvil: `LIVE_SLOT=5 LIVE_FODDER=6,7 LIVE_GLINTS=1000 corepack yarn live strike`. */
@@ -309,6 +317,18 @@ async function strike(keeper: Keeper): Promise<void> {
   say(`after: kind ${String(item.kind)} rarity ${String(item.rarity)} flags ${String(item.flags)} · heat ${JSON.stringify(player?.heat)}`);
 }
 
+/** Collects the keeper's share of the Glint hoard after a settled kill. */
+async function glints(keeper: Keeper): Promise<void> {
+  const { rollup, session, wallet, link } = keeper;
+  const season = await decoded(keeper, "season", sharedPda("season"));
+  const before = await decoded(keeper, "purse", ownedPda("purse", wallet.publicKey));
+  const ix = await claimGlintsIx(openProgram(rollup), session.signer.publicKey, wallet.publicKey, session.token, Number(season?.seasonNumber));
+  await sendInstruction(rollup, keypairSigner(session.signer), [], ix, "claim_glints", "rollup", link);
+  const after = await decoded(keeper, "purse", ownedPda("purse", wallet.publicKey));
+  const left = await decoded(keeper, "season", sharedPda("season"));
+  say(`purse ${String(before?.glints)} → ${String(after?.glints)} · hoard left ${String(left?.pot)}`);
+}
+
 /** Sends one instruction with preflight on and prints the rollup's own refusal. A debugging aid. */
 async function raw(keeper: Keeper): Promise<void> {
   const { rollup, session, wallet } = keeper;
@@ -322,7 +342,7 @@ async function raw(keeper: Keeper): Promise<void> {
   say("The rollup accepted the simulated thaw.");
 }
 
-const STEPS: Record<string, (keeper: Keeper) => Promise<void>> = { enter, gather, thaw, cellar, crater, claim, act, fair, strike, raw };
+const STEPS: Record<string, (keeper: Keeper) => Promise<void>> = { enter, gather, thaw, cellar, crater, claim, glints, act, fair, strike, raw };
 
 async function main(): Promise<void> {
   const step = process.argv[2] ?? "enter";

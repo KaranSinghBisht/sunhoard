@@ -1,6 +1,7 @@
 // The vault keeps its rent reserve. Only its remaining devnet lamports fund awards.
 import type { Connection, PublicKey } from "@solana/web3.js";
 import { payoutPda, sharedPda } from "./pdas";
+import { uiText } from "../content/text";
 import { openProgram } from "./program";
 
 export interface Prize {
@@ -21,7 +22,7 @@ interface RecordData {
 
 export async function readPrize(connection: Connection, owner: PublicKey): Promise<Prize> {
   const [vault, payout] = await connection.getMultipleAccountsInfo([sharedPda("vault"), payoutPda()], "confirmed");
-  if (!vault || !payout) throw new Error("Prize accounts unavailable");
+  if (!vault || !payout) throw new Error(uiText("payoutUnavailable"));
   const rent = await connection.getMinimumBalanceForRentExemption(vault.data.length);
   const data = openProgram(connection).coder.accounts.decode<RecordData>("payout", payout.data);
   const row = data.rows.slice(0, data.len).find((item) => item.wallet.equals(owner));

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { playerMessage } from "../chain/format";
 import { getLive } from "../chain/live";
 import { advanceRoom, aimRoom, enterRoom, leaveRoom } from "../chain/play";
+import { refreshArena } from "../chain/watch";
 import { uiText } from "../content/text";
 import { onDoor } from "../game/bridge";
 import { onFightChange, onIntent, readChainFight } from "../game/fightFeed";
@@ -58,16 +59,13 @@ export function CellarButton() {
       if (inside) {
         if (cleared && room < 6) {
           await advanceRoom(live.rollup, live.session.signer, live.owner, live.session.token, live.link);
-
         } else {
           await leaveRoom(live.rollup, live.session.signer, live.owner, live.session.token, live.link);
-
-
         }
       } else {
         await enterRoom(live.rollup, live.session.signer, live.owner, live.session.token, live.link);
-
       }
+      await refreshArena();
     } catch (err) {
       if (getLive() === live) useHud.getState().setNote(playerMessage(err));
     } finally {
@@ -84,7 +82,7 @@ export function CellarButton() {
 
   useEffect(() => {
     onDoor(() => knock.current());
-    return () => onDoor(() => undefined);
+    return () => onDoor(null);
   }, []);
 
   return (

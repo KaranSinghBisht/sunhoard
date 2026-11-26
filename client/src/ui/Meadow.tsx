@@ -25,6 +25,7 @@ import { setBridge, type MoveReport } from "../game/bridge";
 import { createGame } from "../game/createGame";
 import { bindGame } from "../game/stage";
 import { useHud } from "./store";
+import { stopMusic } from "../art/sound";
 
 /** What a new wallet needs before sign-up: rent for its accounts, the delegations and the session key. */
 const SIGN_UP_LAMPORTS = 80_000_000;
@@ -55,6 +56,7 @@ export function Meadow({ zoom, gate: gateOpen }: { zoom: number; gate: boolean }
     game.current = created;
     bindGame(created);
     return () => {
+      stopMusic();
       created.destroy(true);
       game.current = null;
       bindGame(null);
@@ -136,7 +138,9 @@ export function Meadow({ zoom, gate: gateOpen }: { zoom: number; gate: boolean }
       check();
       const session = await createSession(connection, signing, publicKey);
       check();
-      expires = Math.min(session.expiresAt * 1000, authExpiry(ownerId));
+      const tokenEnds = authExpiry(ownerId);
+      const sessionEnds = session.expiresAt * 1000;
+      expires = Number.isFinite(tokenEnds) && tokenEnds > Date.now() ? Math.min(sessionEnds, tokenEnds) : sessionEnds;
       check();
       const rollup = new Connection(rollupEndpoint(TEE_RPC, walletToken), "confirmed");
       scopeConnection(rollup, active);
@@ -145,7 +149,7 @@ export function Meadow({ zoom, gate: gateOpen }: { zoom: number; gate: boolean }
       check();
       stops.push(watchAccounts(rollup, program, publicKey));
       stops.push(await watchArena(rollup, program, publicKey));
-      if (!active()) { release(); check(); }
+      check();
       play.current = { rollup, session, link, owner: ownerId, busy: false, pace: { posted: false, x: 0, y: 0, at: 0 } };
       setLive({ rollup, session, link, owner: publicKey });
       hud.setSession(true);
@@ -158,7 +162,7 @@ export function Meadow({ zoom, gate: gateOpen }: { zoom: number; gate: boolean }
     } catch (err) {
       if (!closed) {
         release();
-        resetPlayer();
+        resetPlayer(true);
         hud.setNote(playerMessage(err));
       }
     } finally {

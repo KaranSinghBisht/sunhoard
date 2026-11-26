@@ -21,7 +21,7 @@ export function TxLogPanel() {
       )}
       <ul>
         {rows.map((row) => (
-          <li key={row.id} className={row.ok ? "ok" : "bad"}>
+          <li key={row.id} className={row.status === "failed" ? "bad" : row.status === "pending" ? "wait" : "ok"}>
             <span className="what">{row.instruction}</span>
             <span className={row.latencyMs <= QUICK_MS ? "ms quick" : "ms"}>{row.latencyMs} ms</span>
             {row.url ? (
@@ -29,7 +29,9 @@ export function TxLogPanel() {
                 {row.signature.slice(0, 6)}
               </a>
             ) : (
-              <span />
+              <span className="dim" title={row.signature}>
+                {row.signature.slice(0, 6)}
+              </span>
             )}
           </li>
         ))}

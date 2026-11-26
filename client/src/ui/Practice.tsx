@@ -8,6 +8,7 @@ import { aimPractice, startPractice, stopPractice } from "../game/practice";
 import { Labels } from "./Labels";
 import { TouchControls } from "./TouchControls";
 import { useFit } from "./useFit";
+import { stopMusic } from "../art/sound";
 
 export default function Practice({ onExit }: { onExit: () => void }) {
   const host = useRef<HTMLDivElement>(null);
@@ -23,6 +24,7 @@ export default function Practice({ onExit }: { onExit: () => void }) {
     });
     game.current = created;
     return () => {
+      stopMusic();
       created.destroy(true);
       game.current = null;
       onIntent(() => undefined);

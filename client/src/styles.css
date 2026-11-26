@@ -352,6 +352,11 @@ button.begin {
   color: var(--rose);
 }
 
+/* A receipt still on its way is neither landed nor refused. */
+.wait .what {
+  opacity: 0.6;
+}
+
 .rail {
   align-items: stretch;
 }
@@ -735,3 +740,8 @@ button.small {
   .room-note { width: max-content; max-width: 98%; white-space: normal; bottom: 4px; padding: 2px 6px; }
   .gate .wallet-adapter-dropdown { max-width: 100%; }
 }
+
+/* The note is how every refusal reaches the player, so it gets its own line instead of the bar's leftover width. */
+.hud .note { order: 9; flex: 1 1 100%; white-space: normal; overflow: visible; }
+.hud .note:empty { display: none; }
+.hud .mute { margin-left: auto; }

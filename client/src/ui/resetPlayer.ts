@@ -12,9 +12,10 @@ import { useHud } from "./store";
 import { useVillage } from "./village";
 import { useWorld } from "./world";
 
-export function resetPlayer(): void {
+/** A failed entry keeps its receipts: the refused sign-up is exactly what the player needs to see. */
+export function resetPlayer(keepReceipts = false): void {
   setLive(null);
-  resetTxLog();
+  if (!keepReceipts) resetTxLog();
   armChop();
   setChainFight(null, false);
   setChainLair(null, false);

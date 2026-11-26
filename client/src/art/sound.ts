@@ -32,6 +32,14 @@ export function unlockAudio(): void {
   if (currentTrack) playMusic(currentTrack);
 }
 
+/** Silences the track when its scene is torn down, so leaving a room does not leave its music behind. */
+export function stopMusic(): void {
+  currentTrack = null;
+  if (!music) return;
+  music.pause();
+  music = null;
+}
+
 export function playMusic(track: MusicKey): void {
   currentTrack = track;
   if (!canPlay() || !unlocked) return;

@@ -3,6 +3,7 @@ import { playerMessage } from "../chain/format";
 import { getLive } from "../chain/live";
 import { log } from "../chain/log";
 import { aimLair, enterCrater, leaveCrater, scoopSpark } from "../chain/play";
+import { refreshArena } from "../chain/watch";
 import { uiText } from "../content/text";
 import { onLairChange, onLairIntent, readChainLair } from "../game/lairFeed";
 import { useStage } from "../game/stage";
@@ -81,8 +82,8 @@ export function LairButton() {
         await leaveCrater(live.rollup, live.session.signer, live.owner, live.session.token, live.link);
       } else {
         await enterCrater(live.rollup, live.session.signer, live.owner, live.session.token, live.link);
-
       }
+      await refreshArena();
     } catch (err) {
       if (getLive() === live) useHud.getState().setNote(playerMessage(err));
     } finally {

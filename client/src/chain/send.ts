@@ -57,7 +57,8 @@ export async function sendInstruction(
     if (active()) {
       if (row === undefined) {
         useTxLog.getState().add({ instruction: name, signature: "", latencyMs: elapsed(), url: "", ok: false });
-      } else if (err instanceof SettledError) {
+      } else {
+        // A timeout is not proof of failure, but the row must not sit pending for ever; the signature stays to check.
         useTxLog.getState().settle(row, "failed", elapsed());
       }
     }

@@ -88,7 +88,7 @@ export class OverworldScene extends Phaser.Scene {
     this.load.spritesheet("nell", NELL, { frameWidth: 16, frameHeight: 16 });
     this.load.spritesheet("snow", SNOW, { frameWidth: 8, frameHeight: 8 });
     this.load.spritesheet("fire", FIRE, { frameWidth: 12, frameHeight: 12 });
-    this.load.spritesheet("petal", PETAL, { frameWidth: 8, frameHeight: 8 });
+    this.load.spritesheet("petal", PETAL, { frameWidth: 8, frameHeight: 7 });
     this.load.image("shadow", SHADOW);
   }
 

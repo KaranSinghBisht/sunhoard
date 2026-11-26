@@ -309,6 +309,17 @@ function traitsOf(value: unknown): Array<{ id: number; tier: number }> {
     .filter((pair) => pair.id !== 0);
 }
 
+let pullArena: (() => Promise<void>) | null = null;
+
+/**
+ * Reads the arena once, now. The scene follows the arena account, and a
+ * websocket message can be late or lost, so every confirmed enter, leave and
+ * next room asks for it directly as well.
+ */
+export async function refreshArena(): Promise<void> {
+  if (pullArena) await pullArena();
+}
+
 export async function watchArena(connection: Connection, program: Program, owner: PublicKey): Promise<Stop> {
   const account = ownedPda("arena", owner);
   let latest = -1;
@@ -322,13 +333,24 @@ export async function watchArena(connection: Connection, program: Program, owner
     if (useStage.getState().scene !== phase.scene) showScene(phase.scene);
   };
   const id = connection.onAccountChange(account, (info, ctx) => {
-    try { apply(ctx.slot, info.data); }
-    catch { useHud.getState().setNote(uiText("arenaUnreadable")); }
+    try {
+      apply(ctx.slot, info.data);
+    } catch (err) {
+      log(`arena update unreadable: ${err instanceof Error ? err.message.slice(0, 80) : "unknown"}`);
+      useHud.getState().setNote(uiText("arenaUnreadable"));
+    }
   });
-  const stop = () => connection.removeAccountChangeListener(id);
+  const read = async () => {
+    const now = await connection.getAccountInfoAndContext(account);
+    if (now.value) apply(now.context.slot, now.value.data);
+  };
+  pullArena = read;
+  const stop = async () => {
+    if (pullArena === read) pullArena = null;
+    await connection.removeAccountChangeListener(id);
+  };
   try {
-    const initial = await connection.getAccountInfoAndContext(account);
-    if (initial.value && initial.context.slot > latest) apply(initial.context.slot, initial.value.data);
+    await read();
     return stop;
   } catch (error) {
     await stop();

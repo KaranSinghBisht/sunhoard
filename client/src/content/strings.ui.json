@@ -232,5 +232,8 @@
   "demoItemTag": "demo grant",
   "deposit": "Deposit",
   "youGet": "you receive",
-  "listIt": "List it"
+  "listIt": "List it",
+  "loadFailed": "The game did not finish loading.",
+  "reload": "Reload",
+  "knockFirst": "Enter the meadow before the cellar hatch will open."
 }

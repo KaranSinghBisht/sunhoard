@@ -62,6 +62,13 @@ flowchart LR
 members, so no wallet can read it. Each player's `Purse` and `View` are readable only by their owner. The Glare is
 computed inside the enclave: it compares private purses and reveals only the pick.
 
+**Two pots, two units.** The Sunhoard counter in the HUD is the **Glint hoard**: half of every market fee and the
+stakes lost at the anvil. It lives on the rollup. When Old Gloam falls, `settle_season` freezes each slayer's share
+of it (70% by damage, 20% equal, 10% to the killer, 40% cap) and `claim_glints` pays that into their private purse.
+The **SOL prize** is a separate vault on Solana that the operator funds with devnet SOL. The Magic Action writes the
+same split there, and `claim` pays it until the claim deadline. Trading grows the Glint hoard; it does not grow the
+SOL prize.
+
 **Sealing is two-step.** `crack` charges the fee and marks the shell; `crack_reveal`, in a later slot, recomputes
 `key = sha256(salt, item id)`, checks `sha256(key) == commitment`, and writes the key and the gem into the slot. An
 owner cannot simulate the reveal and sell only the duds, and anyone can verify a revealed block afterwards.
@@ -116,15 +123,21 @@ committed example points at devnet and the TEE validator.
 
 ```sh
 # program
-anchor build
+python3 economy/codegen/generate.py --check                # the Rust and browser tables match economy.json
+anchor build                                               # the release binary, target/deploy/
+cargo-build-sbf --manifest-path programs/sunhoard/Cargo.toml \
+  --features debug --sbf-out-dir target/sbf-debug          # the debug binary the flows load
 cargo +1.89.0 test --lib                                   # 66 rules tests
-cargo +1.93.0 test --manifest-path tests-magicsvm-rs/Cargo.toml   # 4 end-to-end flows
+cargo +1.93.0 test --manifest-path tests-magicsvm-rs/Cargo.toml   # 5 end-to-end flows
 
 # client
 cd client
 corepack yarn typecheck
-corepack yarn test                                          # 38 tests
+corepack yarn test                                          # 43 tests
 ```
+
+The flows need both binaries: four load `target/sbf-debug/sunhoard.so`, which adds `debug_grant` and `debug_kill`,
+and one smoke-tests the release binary that is deployed.
 
 The MagicSVM flows run the real program binary against an in-process Solana + rollup. They cover:
 
@@ -132,8 +145,9 @@ The MagicSVM flows run the real program binary against an in-process Solana + ro
   payout and a claim
 - `l1`: the loop, six rooms, the Snuffer, the chest, crafting, Pell, eating and equipping
 - `l2`: the market with the fee split, the anvil, the Glare, the Crater and a visit
-- `l3`: a real kill, the Ember Egg, the season's Spring, naming the next wyrm, `settle_season`, every share paid,
-  and the next season opening with a fresh wyrm
+- `l3`: a real kill, the Ember Egg, the season's Spring, naming the next wyrm, `settle_season`, the SOL share and
+  the Glint share both paid, the claim deadline, and the next season opening with a fresh wyrm
+- `release`: the deployed binary runs sign-up through the first gather
 
 ## Devnet setup (the operator)
 

@@ -44,7 +44,16 @@ import {
   shared,
 } from "./lib.ts";
 
-const SEASON_FLAGS = ["demo mode", "killer named", "Ember Egg held", "salt pending", "settled"];
+const SEASON_FLAGS = [
+  "demo mode",
+  "killer named",
+  "Ember Egg held",
+  "salt pending",
+  "settled",
+  "kill-time pot recorded",
+  "killed in demo mode",
+  "Glint shares frozen",
+];
 
 interface Grant {
   wallet: PublicKey;
@@ -120,11 +129,28 @@ function nextIx(game: Game, admin: PublicKey): Promise<TransactionInstruction> {
  * season never opens over a split that was not written.
  */
 async function payoutIsWritten(game: Game, admin: Keypair): Promise<void> {
-  const season = (await game.account.season.fetch(shared().season)) as { seasonNumber: number };
-  const payout = (await baseGame(admin).account.payout.fetch(payoutPda(1))) as { seasonNumber: { toString(): string } };
+  const season = (await game.account.season.fetch(shared().season)) as Record<string, { toString(): string } | number>;
+  const now = Math.floor(Date.now() / 1000);
+  const springEnds = Number(season.phaseEnds.toString());
+  if (Number(season.phase) !== 2 || now < springEnds) {
+    throw new Error(`season ${String(season.seasonNumber)} is not past Spring yet (Spring ends ${when(springEnds)})`);
+  }
+  // A season the wyrm survived has no split to write; the program lets it roll over.
+  if ((Number(season.flags) & 2) === 0) return;
+  const payout = (await baseGame(admin).account.payout.fetch(payoutPda(1))) as {
+    seasonNumber: { toString(): string };
+    claimUntil: number;
+  };
   if (payout.seasonNumber.toString() !== String(season.seasonNumber)) {
     throw new Error(`season ${String(season.seasonNumber)} has no payout on Solana yet: run settle, wait, then next`);
   }
+  if (now < payout.claimUntil) {
+    throw new Error(`claims for season ${String(season.seasonNumber)} stay open until ${when(payout.claimUntil)}; run next after that`);
+  }
+}
+
+function when(unix: number): string {
+  return new Date(unix * 1000).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata" }) + " IST";
 }
 
 /** The most one `fund` call may move, so a typo cannot drain the admin key. */
