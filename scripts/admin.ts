@@ -7,18 +7,33 @@
  *   node --experimental-strip-types scripts/admin.ts grant <wallet> gear <kind 12-19> <rarity 0-4>
  *   node --experimental-strip-types scripts/admin.ts grant <wallet> shell <size 1-5>
  *   node --experimental-strip-types scripts/admin.ts settle
+ *   node --experimental-strip-types scripts/admin.ts next       # open the next season after a kill
+ *   node --experimental-strip-types scripts/admin.ts fund 0.1   # add devnet SOL to the prize vault
  *   node --experimental-strip-types scripts/admin.ts check      # offline: builds every call
  *
  * `schedule` starts the season clock's crank; run it once the season is open.
  * `settle` works only after Old Gloam has fallen; it writes the SOL split.
+ * `next` works only after a kill. Settle first: the next settle overwrites the
+ * payout record, and shares nobody claimed stay in the vault for the new pot.
  */
-import { Keypair, PublicKey, Transaction, type TransactionInstruction } from "@solana/web3.js";
+import {
+  Keypair,
+  LAMPORTS_PER_SOL,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+  type TransactionInstruction,
+} from "@solana/web3.js";
 import {
   type Game,
   MAGIC,
   MAGIC_CONTEXT,
   PROGRAM_ID,
+  QUEUE,
+  SLOT_HASHES,
+  VRF,
   adminKeypair,
+  baseGame,
   budget,
   offlineGame,
   owned,
@@ -81,6 +96,41 @@ function settleIx(game: Game, admin: PublicKey, seasonNumber: number): Promise<T
     .instruction();
 }
 
+function nextIx(game: Game, admin: PublicKey): Promise<TransactionInstruction> {
+  const at = shared();
+  return game.methods
+    .startSeason()
+    .accountsPartial({
+      admin,
+      season: at.season,
+      world: at.world,
+      oracleQueue: QUEUE,
+      programIdentity: at.identity,
+      vrfProgram: VRF,
+      slotHashes: SLOT_HASHES,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+}
+
+/** The most one `fund` call may move, so a typo cannot drain the admin key. */
+const FUND_CAP_SOL = 1;
+
+/** Moves devnet SOL from the admin to the prize vault, on Solana. */
+async function fund(amount: string | undefined): Promise<void> {
+  const sol = Number(amount);
+  if (!Number.isFinite(sol) || sol <= 0 || sol > FUND_CAP_SOL) {
+    throw new Error(`fund takes an amount of SOL above 0 and at most ${FUND_CAP_SOL}`);
+  }
+  const admin = adminKeypair();
+  const transfer = SystemProgram.transfer({
+    fromPubkey: admin.publicKey,
+    toPubkey: shared().vault,
+    lamports: Math.round(sol * LAMPORTS_PER_SOL),
+  });
+  await send(baseGame(admin), transfer, `the vault holds ${sol} more devnet SOL`);
+}
+
 function whole(value: string | undefined, low: number, high: number, name: string): number {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < low || parsed > high) {
@@ -131,6 +181,7 @@ async function check(): Promise<void> {
     ["demo_grant gear", await grantIx(game, who, parseGrant([who.toBase58(), "gear", "13", "2"]))],
     ["demo_grant shell", await grantIx(game, who, parseGrant([who.toBase58(), "shell", "3"]))],
     ["settle_season", await settleIx(game, who, 1)],
+    ["start_season", await nextIx(game, who)],
   ];
   for (const [name, ix] of built) {
     say(`${name}: ${ix.keys.length} accounts, ${ix.data.length} bytes`);
@@ -155,17 +206,19 @@ function plan(command: string | undefined, args: string[]): Call {
     return async (game, admin) => send(game, await grantIx(game, admin, grant), "demo item granted");
   }
   if (command === "settle") {
-    return async (game, admin) => {
-      const state = (await game.account.season.fetch(shared().season)) as { seasonNumber: number };
-      await send(game, await settleIx(game, admin, Number(state.seasonNumber)), "the season is settled");
-    };
+    // One payout record serves every season; its address is seeded with season 1.
+    return async (game, admin) => send(game, await settleIx(game, admin, 1), "the season is settled");
   }
-  throw new Error("usage: admin.ts status | demo on|off | schedule | grant ... | settle | check");
+  if (command === "next") {
+    return async (game, admin) => send(game, await nextIx(game, admin), "the next season's salt is requested");
+  }
+  throw new Error("usage: admin.ts status | demo on|off | schedule | grant ... | settle | next | fund <sol> | check");
 }
 
 run(async () => {
   const [command, ...args] = process.argv.slice(2);
   if (command === "check") return check();
+  if (command === "fund") return fund(args[0]);
   // The arguments are checked before the admin key is read or the rollup is asked for a token.
   const call = plan(command, args);
   const admin = adminKeypair();

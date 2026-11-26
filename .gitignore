@@ -6,3 +6,4 @@ dist/
 .secrets/
 assets-src/
 *keypair*.json
+.omc/
