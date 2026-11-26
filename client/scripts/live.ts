@@ -29,6 +29,7 @@ import { ownedPda, sharedPda } from "../src/chain/pdas";
 import {
   aimLair,
   aimRoom,
+  buyListing,
   chopTree,
   claimShare,
   enterCrater,
@@ -36,6 +37,7 @@ import {
   keypairSigner,
   leaveCrater,
   leaveRoom,
+  listItem,
   playAction,
   postMove,
   thawShell,
@@ -194,16 +196,25 @@ async function crater(keeper: Keeper): Promise<void> {
   const owner = wallet.publicKey;
   const until = Date.now() + Number(process.env.LIVE_SECONDS ?? "8") * 1000;
   while (Date.now() < until) {
-    await enterCrater(rollup, session.signer, owner, session.token, link);
+    // A visit left open by an earlier run is closed first.
+    await enterCrater(rollup, session.signer, owner, session.token, link).catch(async () => {
+      await leaveCrater(rollup, session.signer, owner, session.token, link);
+      await enterCrater(rollup, session.signer, owner, session.token, link);
+    });
     for (let beat = 0; Date.now() < until; beat += 1) {
       const arena = await decoded(keeper, "arena", ownedPda("arena", owner));
       if (Number(arena?.mode) !== 3) break;
       const gloam = (arena?.monsters as Array<{ body: { x: number; y: number } }>)[0].body;
       const gapX = gloam.x - Number(arena?.playerX);
       const gapY = gloam.y - Number(arena?.playerY);
-      const close = gapX * gapX + gapY * gapY <= 100;
-      const dx = close ? 0 : Math.sign(gapX);
-      const dy = close ? 0 : Math.sign(gapY);
+      // Stand still only when the wyrm is in reach and in front; otherwise step at it along the longer axis, which also turns the keeper.
+      const facing = Number((arena?.player as { facing: number }).facing);
+      const dot = gapX * (facing === 0 ? 1 : facing === 2 ? -1 : 0) + gapY * (facing === 1 ? 1 : facing === 3 ? -1 : 0);
+      const reach = gapX * gapX + gapY * gapY;
+      const aimed = reach <= 18 * 18 && dot > 0 && dot * dot * 2 >= reach;
+      const wide = Math.abs(gapX) > Math.abs(gapY);
+      const dx = aimed || !wide ? 0 : Math.sign(gapX);
+      const dy = aimed || wide ? 0 : Math.sign(gapY);
       // A swing is spent once it lands, so the intent goes out again on every beat.
       const sent = await aimLair(rollup, session.signer, owner, session.token, link, dx, dy, 1, 0).then(
         () => true,
@@ -211,7 +222,7 @@ async function crater(keeper: Keeper): Promise<void> {
       );
       if (!sent) break;
       if (beat % 16 === 0) say(`${await arenaLine(keeper)} · hits ${String(arena?.lairHits)}`);
-      await pause(250);
+      await pause(40);
     }
     const season = await decoded(keeper, "season", sharedPda("season"));
     say(`visit over · total damage ${String(season?.totalDamage)} · phase ${String(season?.phase)} · flags ${String(season?.flags)}`);
@@ -236,6 +247,22 @@ async function act(keeper: Keeper): Promise<void> {
   say(`purse: ${String(purse?.glints)} Glint hundredths · pack: ${await wood(keeper)}`);
 }
 
+/** The Coldfair: `LIVE_FAIR=list LIVE_SLOT=3 LIVE_PRICE=1000`, or `LIVE_FAIR=buy LIVE_LISTING=0 LIVE_SELLER=<wallet>`. */
+async function fair(keeper: Keeper): Promise<void> {
+  const { rollup, session, wallet, link } = keeper;
+  if (process.env.LIVE_FAIR === "buy") {
+    const seller = new PublicKey(process.env.LIVE_SELLER ?? "");
+    const listing = Number(process.env.LIVE_LISTING ?? "0");
+    await buyListing(rollup, session.signer, wallet.publicKey, session.token, link, listing, seller);
+  } else {
+    const slot = Number(process.env.LIVE_SLOT ?? "0");
+    await listItem(rollup, session.signer, wallet.publicKey, session.token, link, slot, process.env.LIVE_PRICE ?? "1000");
+  }
+  const purse = await decoded(keeper, "purse", ownedPda("purse", wallet.publicKey));
+  const season = await decoded(keeper, "season", sharedPda("season"));
+  say(`purse ${String(purse?.glints)} · pot ${String(season?.pot)} · burned ${String(season?.burned)} · pack ${await wood(keeper)}`);
+}
+
 /** Sends one instruction with preflight on and prints the rollup's own refusal. A debugging aid. */
 async function raw(keeper: Keeper): Promise<void> {
   const { rollup, session, wallet } = keeper;
@@ -248,7 +275,7 @@ async function raw(keeper: Keeper): Promise<void> {
   say(typeof sim === "string" ? sim.slice(0, 600) : JSON.stringify(sim.value).slice(0, 1500));
 }
 
-const STEPS: Record<string, (keeper: Keeper) => Promise<void>> = { enter, gather, thaw, cellar, crater, claim, act, raw };
+const STEPS: Record<string, (keeper: Keeper) => Promise<void>> = { enter, gather, thaw, cellar, crater, claim, act, fair, raw };
 
 async function main(): Promise<void> {
   const step = process.argv[2] ?? "enter";

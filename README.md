@@ -132,7 +132,8 @@ The MagicSVM flows run the real program binary against an in-process Solana + ro
   payout and a claim
 - `l1`: the loop, six rooms, the Snuffer, the chest, crafting, Pell, eating and equipping
 - `l2`: the market with the fee split, the anvil, the Glare, the Crater and a visit
-- `l3`: a real kill, the Ember Egg, the season's Spring, naming the next wyrm, `settle_season`, and every share paid
+- `l3`: a real kill, the Ember Egg, the season's Spring, naming the next wyrm, `settle_season`, every share paid,
+  and the next season opening with a fresh wyrm
 
 ## Devnet setup (the operator)
 
@@ -140,19 +141,45 @@ The admin keypair and all env files are gitignored. The admin key lives outside 
 `~/.config/solana/sunhoard-admin.json`.
 
 ```sh
-# 1. deploy (devnet only; needs ~16 SOL free while the deploy buffer exists)
+# 1. deploy or upgrade (devnet only; rent is about 6 SOL). The public RPC drops uploads, so the
+#    script keeps its buffer and resumes; run it again if it stops early.
 ./scripts/deploy-devnet.sh
 
 # 2. create the shared accounts, delegate them, set permissions, open season 1 in demo mode
 node --experimental-strip-types scripts/init-game.ts
 
-# 3. start the season clock's crank
-node --experimental-strip-types scripts/admin.ts schedule
+# 3. check it
 node --experimental-strip-types scripts/admin.ts status
 ```
 
-`scripts/admin.ts` also has `demo on|off`, `grant <wallet> gear <kind> <rarity>`, `grant <wallet> shell <size>` and
-`settle`. Everything is devnet-guarded and nothing prints a key or a token.
+`scripts/admin.ts` also has:
+
+- `grant <wallet> gear <kind> <rarity>` and `grant <wallet> shell <size>`: labelled demo items, demo mode only
+- `settle`: after Old Gloam falls, commits the season and runs the Magic Action that writes the split on Solana
+- `next`: opens the next season after a kill. The damage table and Old Gloam's HP reset; the pot and the name the
+  Ember Egg gave carry over. Settle first: the next settle overwrites the payout record, and a share nobody claimed
+  stays in the vault for the new pot
+- `fund <sol>`: adds devnet SOL to the prize vault
+- `schedule`: starts the season clock's crank. In demo mode the Long Night then ends after 10 minutes, so leave it
+  off for a world that should stay open
+- `demo on|off`
+
+Everything is devnet-guarded and nothing prints a key or a token.
+
+### Prove it live
+
+`client/scripts/live.ts` drives the page's own chain code against devnet with a throwaway keeper, so every step the
+browser takes can be checked without a wallet popup:
+
+```sh
+cd client
+corepack yarn live enter      # sign up, delegate, join, session key
+corepack yarn live gather     # a session-signed chop and its VRF bonus
+corepack yarn live private    # a stranger's token must not read World
+corepack yarn live cellar     # a room on the 100 ms crank
+corepack yarn live crater     # fight Old Gloam
+corepack yarn live claim      # claim the share on Solana
+```
 
 ## Layout
 
