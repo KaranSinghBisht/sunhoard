@@ -75,18 +75,25 @@ owner cannot simulate the reveal and sell only the duds, and anyone can verify a
 
 ## Play it
 
-1. Open the client (see below) and connect a devnet wallet.
+1. Open the client and choose **Play on Solana devnet**. Connect Phantom or Solflare on devnet, or press **Use a
+   guest key**: a throwaway devnet key kept in this browser. A new wallet needs 0.1 devnet SOL for account rent; the
+   guest key asks the public faucet first.
 2. **Enter the meadow** once. This signs up, delegates the six player accounts to the rollup, joins the season and
-   creates a session key: about six popups, the last one for an hour of play.
+   creates a 12-hour session key. A wallet shows about six popups, a guest key none. After that nothing asks again.
 3. Walk with WASD, **Space** to chop, mine, pick or talk, **E** for the pack.
 4. Follow the first-night trail: the camp fire, the birch, Nell, the cellar hatch. Clear the Bramble Cellars, take the
    chest, thaw the shell at the Thawery and check the hash.
 5. Sell, craft, equip, list at the Coldfair, strike the anvil, set a block in a lantern post.
-6. When you are ready, enter the **Noonless Crater**. Old Gloam has one HP pool for the whole season. When it dies the
-   Magic Action writes the split on Solana and the claim button pays your share from the vault.
+6. When you are ready, enter the **Noonless Crater**. The wyrm has one HP pool for the whole season. When it dies the
+   Magic Action writes the split on Solana; you claim your Glints on the rollup and your SOL from the vault, and the
+   killer's Ember Egg names the next wyrm.
 
-No wallet? The Bramble Cellars button opens a **practice room** that runs the same fixed-step fight in the page. It
-sends nothing and awards nothing, so a judge can feel the combat without a key.
+**Check the privacy claim yourself.** Once you are in, **Try to cheat** signs in to the rollup with a brand-new key
+that has no rights and asks for the public Season, the sealed World (Old Gloam's HP and the loot seals) and your
+purse. It shows what came back beside what your own key gets.
+
+No wallet at all? **Practice combat** on the title screen runs the same fixed-step fight in the page. It sends
+nothing and awards nothing, so a judge can feel the combat without a key.
 
 ## The demo (3 minutes)
 
