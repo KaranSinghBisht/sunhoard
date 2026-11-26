@@ -1,5 +1,8 @@
 # Independent audit and remediation handoff
 
+**The finished record is `../../AUDIT.md`** (Fri Nov 27): every finding, its status, how it was verified and what was
+not. The table below is Codex's baseline from before the fixes; tracks A–C were not updated separately.
+
 ## Baseline reviewed on 26 November 2026 IST
 
 ✅ The starting revision was `6c4e967`. The engineering and judge review scored the submission at **68/100**. The highest-impact gaps were an inaccessible public demo, wallet-boundary errors, and economic promises that the program did not consistently enforce. Historical evidence for this revision includes 66 Rust unit tests, four MagicSVM flows, 41 browser-library tests, a devnet settlement, and two 0.04 devnet SOL claims. Those transactions predate the changes below.

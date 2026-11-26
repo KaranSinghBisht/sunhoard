@@ -1,5 +1,27 @@
 # Progress
-Milestone: live on devnet, the whole spine proven · Updated: Thu Nov 26, 10:55 AM IST
+Milestone: audit fixes integrated and live · Updated: Fri Nov 27, 4:30 AM IST
+
+## Audit pass (Thu Nov 26 – Fri Nov 27) ✅
+- Codex audited `6c4e967` (68/100) and began fixing every finding; it ran out of quota with the client not
+  compiling. Claude reviewed the program diff, finished the client, applied a reviewer agent's findings, and
+  upgraded devnet. The findings, what was fixed, how each was verified and what was not are in `../AUDIT.md`.
+- Program changes: price-bound `buy_quoted` / `cancel_quoted` and correct slot bounds; seal checked before the thaw
+  fee, a refund for a lost seal, a `ThawReceipt` event; raid rows on credited damage, bound to their season;
+  `claim_glints` and a kill-time snapshot of the Glint hoard; a claim deadline on the SOL payout; canonical gather
+  nodes; the bell's cooldown and nonce; tables generated from `economy/economy.json`. Every new field reuses
+  padding, so live accounts kept their layout.
+- Contract changes: IDL instructions `buy` → `buy_quoted(listing, revision, expected_price)`, `cancel` →
+  `cancel_quoted(listing, revision)`, new `claim_glints(season_number)`, `bell_cb` nonce is now `u64`; `crack` takes
+  `world`, `crack_reveal` takes `season`, `start_season` takes `payout`, `exit_dungeon` writes `season`.
+  `strings.ui.json` gained 35 keys. `economy/economy.json` and `economy/codegen/generate.py` now exist.
+- Test evidence, Fri Nov 27, 4:15 AM IST ✅: `cargo +1.89.0 test --lib` 66 passed; `cargo +1.93.0 test
+  --manifest-path tests-magicsvm-rs/Cargo.toml` 5 passed (the fifth smoke-tests the release binary); `corepack yarn
+  typecheck` exit 0; `corepack yarn test` 43 passed; `corepack yarn build` built (165 KB first load);
+  `python3 economy/codegen/generate.py --check` exit 0. Devnet upgraded at slot 526660185; the live run repeated the
+  whole spine, season 2 was killed, settled and claimed in SOL and in Glints, and season 3 is open.
+- Does not work yet / not checked ❓: see `../AUDIT.md` §6.
+
+## Earlier: live on devnet, the whole spine proven (Thu Nov 26, 10:55 AM IST)
 
 ## Live on devnet (Thu Nov 26) ✅
 - Deployed by the Claude session with the student's go-ahead. Program `FxqDh8g5KcZbEzg4AJsX5yUit6A63BC5PoncdWjtBKqS`,
