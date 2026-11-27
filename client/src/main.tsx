@@ -5,6 +5,8 @@ import { Guide } from "./ui/Guide";
 import { beginTale, firstVisit, useTale } from "./game/story/tale";
 import "./styles.css";
 import "./windows.css";
+import "./roll.css";
+import "./fight.css";
 
 const Live = lazy(() => import("./LiveRoot"));
 const Practice = lazy(() => import("./ui/Practice"));

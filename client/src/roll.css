@@ -1,0 +1,490 @@
+/* Roll reveals: the Thawery's odds strips and seal stamp, and the anvil's wheel. */
+.window.thaw {
+  width: min(100%, 700px);
+}
+
+/* A shell in the list: its name over the seal and odds shown before any fee is paid. */
+.roll-row {
+  display: grid;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.roll-row .dim {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roll-thaw {
+  display: grid;
+  gap: 8px;
+}
+
+/* The stage: the shell while the chain works, then what came out of it. */
+.roll-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  min-height: 108px;
+  padding: 6px 10px;
+  background: rgba(59, 54, 67, 0.6);
+  border: 2px solid var(--night);
+}
+
+.roll-card h3 {
+  margin: 0 0 2px;
+  font-size: var(--head);
+  line-height: 1.1;
+  color: var(--gold);
+}
+
+.roll-card p {
+  margin: 0;
+}
+
+.roll-cards {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.roll-cards.two .roll-card {
+  min-height: 84px;
+}
+
+.roll-cards.two .roll-card h3 {
+  font-size: var(--text);
+}
+
+/* A block glows in its grade's colour. */
+.roll-card[class*="grade-"] {
+  border-color: var(--glow);
+  background:
+    radial-gradient(circle at 58px 50%, color-mix(in srgb, var(--glow) 45%, transparent) 0, transparent 120px),
+    rgba(59, 54, 67, 0.6);
+}
+
+.roll-card.grade-0 { --glow: #8e96b5; }
+.roll-card.grade-1 { --glow: var(--teal); }
+.roll-card.grade-2 { --glow: var(--moss); }
+.roll-card.grade-3 { --glow: var(--gold); }
+.roll-card.grade-4 { --glow: var(--ember); }
+.roll-card.is-dust { border-color: var(--soft); }
+
+.roll-shell {
+  position: relative;
+  display: inline-block;
+  width: 96px;
+  height: 96px;
+  animation: roll-shake 0.56s steps(1) infinite;
+}
+
+.roll-shell.at-slot { animation-duration: 0.4s; }
+.roll-shell.at-reveal,
+.roll-shell.at-read,
+.roll-shell.at-done { animation-duration: 0.26s; }
+
+.roll-crack {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(1px 0 0 var(--snow));
+}
+
+.roll-crack path {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.2;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 70;
+  shape-rendering: crispEdges;
+  transition: stroke-dashoffset 0.4s steps(5);
+}
+
+.at-slot .roll-crack path { stroke-dashoffset: 40; }
+.at-reveal .roll-crack path,
+.at-read .roll-crack path,
+.at-done .roll-crack path { stroke-dashoffset: 0; }
+
+.roll-stages {
+  display: flex;
+  gap: 6px;
+  margin: 2px 0 4px;
+  padding: 0;
+  list-style: none;
+}
+
+.roll-stages li {
+  padding: 1px 8px;
+  color: var(--soft);
+  border: 2px solid var(--night);
+}
+
+.roll-stages .past {
+  color: var(--ink);
+  background: var(--moss);
+  border-color: var(--ink);
+}
+
+.roll-stages .now {
+  color: var(--ink);
+  background: var(--gold);
+  border-color: var(--ink);
+  animation: roll-blink 0.6s steps(1) infinite;
+}
+
+.roll-pop {
+  animation: roll-pop 0.6s steps(6) both;
+}
+
+/* Frost dust: a small pile, drawn in six-pixel squares. */
+.roll-dust {
+  display: block;
+  width: 96px;
+  height: 96px;
+  background:
+    linear-gradient(var(--snow), var(--snow)) 18px 66px / 60px 6px no-repeat,
+    linear-gradient(var(--soft), var(--soft)) 24px 60px / 48px 6px no-repeat,
+    linear-gradient(var(--snow), var(--snow)) 36px 54px / 24px 6px no-repeat,
+    linear-gradient(var(--teal), var(--teal)) 30px 30px / 6px 6px no-repeat,
+    linear-gradient(var(--snow), var(--snow)) 60px 24px / 6px 6px no-repeat,
+    linear-gradient(var(--teal), var(--teal)) 48px 40px / 6px 6px no-repeat;
+}
+
+/* One roll: its outcomes end to end, each as wide as its chance. */
+.roll-strip {
+  display: grid;
+  gap: 2px;
+}
+
+.roll-strip-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--teal);
+}
+
+.roll-read {
+  color: var(--gold);
+}
+
+.roll-bar {
+  position: relative;
+  display: flex;
+  height: 28px;
+  margin: 8px 3px 6px;
+  border: 2px solid var(--ink);
+  box-shadow: 0 0 0 2px var(--night);
+}
+
+.roll-seg {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  overflow: hidden;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--ink);
+  border-left: 2px solid var(--ink);
+}
+
+.roll-seg:first-child {
+  border-left: 0;
+}
+
+.seg-dust {
+  color: var(--snow);
+  background: #59607c repeating-linear-gradient(135deg, transparent 0 4px, rgba(20, 27, 27, 0.4) 4px 8px);
+}
+
+.seg-block,
+.seg-second { background: var(--warm); }
+.seg-none { color: var(--snow); background: var(--dusk); }
+.seg-g0 { background: #8e96b5; }
+.seg-g1 { background: var(--teal); }
+.seg-g2 { background: var(--moss); }
+.seg-g3 { background: var(--gold); }
+.seg-g4 { background: var(--ember); }
+
+.is-landed .roll-seg {
+  filter: saturate(0.45) brightness(0.55);
+}
+
+.is-landed .roll-seg.hit {
+  filter: none;
+  box-shadow: inset 0 0 0 2px var(--snow);
+  animation: roll-blink 0.3s steps(1) 3;
+}
+
+.roll-marker {
+  position: absolute;
+  top: -8px;
+  bottom: -8px;
+  left: 0;
+  width: 6px;
+  margin-left: -3px;
+  background: var(--snow);
+  border: 2px solid var(--ink);
+  pointer-events: none;
+}
+
+.roll-marker::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: -5px;
+  width: 12px;
+  height: 6px;
+  background: var(--ember);
+  border: 2px solid var(--ink);
+}
+
+.is-idle .roll-marker { animation: roll-sweep 1.1s linear infinite alternate; }
+.is-run .roll-marker { animation: roll-land 2.1s linear forwards; }
+.is-landed .roll-marker { left: var(--land); }
+
+.roll-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--soft);
+}
+
+.roll-legend li {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.roll-legend .hit {
+  color: var(--gold);
+}
+
+.roll-swatch {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--ink);
+}
+
+/* The proof: the seal from before the fee beside the hash of the key from after it. */
+.roll-stamp {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 14px;
+  align-items: center;
+  padding: 5px 10px;
+  background: rgba(20, 27, 27, 0.5);
+  border: 2px dashed var(--night);
+}
+
+.roll-stamp.is-ok { border: 2px solid var(--moss); }
+.roll-stamp.is-bad { border: 2px solid var(--rose); }
+.roll-stamp.is-none { grid-template-columns: minmax(0, 1fr); }
+.roll-stamp.is-none .roll-verdict { color: var(--warm); }
+
+.roll-stamp dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 10px;
+  margin: 0;
+}
+
+.roll-stamp dt { color: var(--soft); }
+.roll-stamp dd { margin: 0; color: var(--snow); letter-spacing: 1px; }
+.roll-stamp.is-wait dd:last-child { color: var(--night); }
+
+.roll-verdict {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  color: var(--rose);
+}
+
+.is-ok .roll-verdict {
+  padding: 4px 10px;
+  color: var(--moss);
+  border: 2px solid var(--moss);
+  transform: rotate(-4deg);
+  animation: roll-stamp 0.35s steps(4) both;
+}
+
+.roll-back {
+  justify-self: end;
+}
+
+/* The anvil: a wheel whose gold slice is the strike's real chance. */
+.roll-forge,
+.roll-anvil {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.roll-anvil-top {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-height: 140px;
+}
+
+.roll-wheel {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  margin-top: 6px;
+}
+
+.roll-disc { display: block; }
+.roll-disc .rim { fill: var(--ink); stroke: var(--night); stroke-width: 2; }
+.roll-disc .slice-hit { fill: var(--gold); stroke: var(--ink); stroke-width: 2; }
+.roll-disc .slice-miss { fill: #4c4159; stroke: var(--ink); stroke-width: 2; }
+.roll-disc .tick { stroke: var(--ink); stroke-width: 2; }
+
+.is-spin .roll-disc { animation: roll-spin 0.6s linear infinite; }
+.is-land .roll-disc { animation: roll-stop 2.8s cubic-bezier(0.12, 0.62, 0.2, 1) forwards; }
+.is-done .roll-disc { transform: rotate(var(--stop)); }
+
+.roll-pointer {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  margin-left: -9px;
+  border-top: 18px solid var(--ember);
+  border-right: 9px solid transparent;
+  border-left: 9px solid transparent;
+  filter: drop-shadow(0 2px 0 var(--ink)) drop-shadow(0 -2px 0 var(--ink));
+}
+
+.roll-hub {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  min-width: 64px;
+  padding: 3px 4px;
+  line-height: 1.1;
+  text-align: center;
+  color: var(--gold);
+  background: var(--ink);
+  border: 2px solid var(--gold);
+  transform: translate(-50%, -50%);
+}
+
+.roll-wheel.is-empty .roll-hub { color: var(--soft); border-color: var(--night); }
+.roll-wheel.hit .roll-hub { color: var(--ink); background: var(--gold); border-color: var(--ink); animation: roll-blink 0.3s steps(1) 4; }
+.roll-wheel.miss .roll-hub { color: var(--ink); background: var(--rose); border-color: var(--ink); }
+
+.roll-terms {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.roll-terms dt.hit { color: var(--gold); }
+.roll-terms dt.miss { color: var(--rose); }
+.roll-terms dd { margin: 0 0 4px; line-height: 1.15; color: var(--soft); }
+
+.roll-status {
+  margin: 0;
+  padding: 3px 8px;
+  text-align: center;
+  border: 2px solid var(--night);
+}
+
+.roll-status.hit { color: var(--ink); background: var(--gold); border-color: var(--ink); }
+.roll-status.miss { color: var(--ink); background: var(--rose); border-color: var(--ink); }
+.roll-status.late { color: var(--warm); }
+
+.roll-warn {
+  margin: 0;
+  color: var(--warm);
+}
+
+.window .roll-forge .fodder { max-height: 86px; }
+.window .roll-forge .row { align-items: center; }
+
+.roll-feed {
+  display: flex;
+  flex: 1 1 0;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  color: var(--soft);
+  white-space: nowrap;
+}
+
+.window .roll-feed input { flex: 1 1 0; width: 0; }
+
+@keyframes roll-shake {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(-2px, 1px) rotate(-4deg); }
+  50% { transform: translate(2px, -1px) rotate(3deg); }
+  75% { transform: translate(-1px, -2px) rotate(-2deg); }
+}
+
+@keyframes roll-blink {
+  50% { filter: brightness(1.7); }
+}
+
+@keyframes roll-pop {
+  0% { transform: scale(0) rotate(-20deg); }
+  60% { transform: scale(1.25) rotate(4deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+@keyframes roll-sweep {
+  from { left: 0; }
+  to { left: 100%; }
+}
+
+/* Near, far, near, far, then slowing from the far end onto the roll. */
+@keyframes roll-land {
+  0% { left: var(--near); }
+  16% { left: var(--far); }
+  32% { left: var(--near); }
+  50% { left: var(--far); animation-timing-function: cubic-bezier(0.1, 0.55, 0.2, 1); }
+  100% { left: var(--land); }
+}
+
+@keyframes roll-stamp {
+  from { opacity: 0; transform: rotate(-4deg) scale(2.2); }
+  to { opacity: 1; transform: rotate(-4deg) scale(1); }
+}
+
+@keyframes roll-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes roll-stop {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(var(--stop)); }
+}
+
+/* Less motion: no spin and no sweep. The result is simply shown. */
+@media (prefers-reduced-motion: reduce) {
+  .roll-shell,
+  .roll-stages .now,
+  .roll-pop,
+  .roll-seg.hit,
+  .roll-marker,
+  .roll-disc,
+  .roll-hub,
+  .is-ok .roll-verdict {
+    animation: none !important;
+  }
+
+  .is-idle .roll-marker { display: none; }
+  .is-run .roll-marker { left: var(--land); }
+  .is-land .roll-disc { transform: rotate(var(--stop)); }
+}
