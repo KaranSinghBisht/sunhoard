@@ -277,14 +277,17 @@ async function act(keeper: Keeper): Promise<void> {
   say(`purse: ${String(purse?.glints)} Glint hundredths · pack: ${await wood(keeper)}`);
 }
 
-/** The Coldfair: `LIVE_FAIR=list LIVE_SLOT=3 LIVE_PRICE=1000`, or `LIVE_FAIR=buy LIVE_LISTING=0 LIVE_SELLER=<wallet>`. */
+/** The Coldfair: `LIVE_FAIR=list LIVE_SLOT=3 LIVE_PRICE=1000`, or `LIVE_FAIR=buy LIVE_SELLER=<wallet>` (add `LIVE_LISTING=<n>` to pick one). */
 async function fair(keeper: Keeper): Promise<void> {
   const { rollup, session, wallet, link } = keeper;
   if (process.env.LIVE_FAIR === "buy") {
     const seller = new PublicKey(process.env.LIVE_SELLER ?? "");
-    const index = Number(process.env.LIVE_LISTING ?? "0");
+    const all = await listings(keeper);
+    // With no `LIVE_LISTING`, the seller's first open listing is the one bought.
+    const index = process.env.LIVE_LISTING ? Number(process.env.LIVE_LISTING) : openListing(all, seller.toBase58());
+    if (index < 0 || !all[index]) throw new CheckFailure("that seller has no open listing");
     // The buyer names the revision and price it saw; the program refuses anything else.
-    const seen = (await listings(keeper))[index];
+    const seen = all[index];
     await buyListing(rollup, session.signer, wallet.publicKey, session.token, link, index, seller, String(seen.revision), String(seen.price));
   } else {
     const slot = Number(process.env.LIVE_SLOT ?? "0");
@@ -295,6 +298,14 @@ async function fair(keeper: Keeper): Promise<void> {
   const purse = await decoded(keeper, "purse", ownedPda("purse", wallet.publicKey));
   const season = await decoded(keeper, "season", sharedPda("season"));
   say(`purse ${String(purse?.glints)} · pot ${String(season?.pot)} · burned ${String(season?.burned)} · pack ${await wood(keeper)}`);
+}
+
+/** A listing slot is open when it still holds an item. */
+function openListing(all: Array<Record<string, unknown>>, seller: string): number {
+  return all.findIndex((entry) => {
+    const item = (entry.item ?? {}) as Record<string, unknown>;
+    return String(entry.seller) === seller && (Number(item.kind) !== 0 || Number(item.quantity) !== 0);
+  });
 }
 
 async function listings(keeper: Keeper): Promise<Array<Record<string, unknown>>> {
@@ -329,6 +340,17 @@ async function glints(keeper: Keeper): Promise<void> {
   say(`purse ${String(before?.glints)} → ${String(after?.glints)} · hoard left ${String(left?.pot)}`);
 }
 
+/** Read-only: what the keeper holds. */
+async function purse(keeper: Keeper): Promise<void> {
+  const held = await decoded(keeper, "purse", ownedPda("purse", keeper.wallet.publicKey));
+  const pack = await decoded(keeper, "inventory", ownedPda("inventory", keeper.wallet.publicKey));
+  const slots = ((pack?.slots ?? []) as Array<Record<string, unknown>>)
+    .map((slot, index) => ({ slot: index, kind: slot.kind, quantity: slot.quantity, flags: slot.flags, shell: slot.shell }))
+    .filter((slot) => Number(slot.quantity) > 0);
+  say(`purse ${String(held?.glints)} Glint hundredths`);
+  for (const slot of slots) say(JSON.stringify(slot));
+}
+
 /** Sends one instruction with preflight on and prints the rollup's own refusal. A debugging aid. */
 async function raw(keeper: Keeper): Promise<void> {
   const { rollup, session, wallet } = keeper;
@@ -342,7 +364,7 @@ async function raw(keeper: Keeper): Promise<void> {
   say("The rollup accepted the simulated thaw.");
 }
 
-const STEPS: Record<string, (keeper: Keeper) => Promise<void>> = { enter, gather, thaw, cellar, crater, claim, glints, act, fair, strike, raw };
+const STEPS: Record<string, (keeper: Keeper) => Promise<void>> = { enter, gather, thaw, cellar, crater, claim, glints, act, fair, strike, raw, purse };
 
 async function main(): Promise<void> {
   const step = process.argv[2] ?? "enter";
