@@ -44,3 +44,12 @@ export const GEAR_LAST = 19;
 export function isGear(kind: number): boolean {
   return kind >= GEAR_FIRST && kind <= GEAR_LAST;
 }
+
+/**
+ * The gear in hand. A new keeper's equipped slot is 0, which holds their first
+ * Magic Block: the chain fights with the starter axe then, so nothing is held.
+ */
+export function heldItem(state: Pick<PackState, "slots" | "equipped">): SlotView | undefined {
+  const item = state.slots.find((slot) => slot.slot === state.equipped);
+  return item && isGear(item.kind) ? item : undefined;
+}

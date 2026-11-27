@@ -2,7 +2,7 @@ import { useState } from "react";
 import { uiText } from "../content/text";
 import { ItemIcon } from "./ItemIcon";
 import { itemLabel } from "./itemLabel";
-import { BOUND, KIND_MEAL, LISTED, SEALED, isGear, usePack, type SlotView } from "./pack";
+import { BOUND, KIND_MEAL, LISTED, SEALED, heldItem, isGear, usePack, type SlotView } from "./pack";
 import { usePanel } from "./panel";
 import { useHud } from "./store";
 
@@ -82,7 +82,7 @@ function Detail({ item, equipped, act }: { item: SlotView; equipped: boolean; ac
 /** The pack as a grid of slots, in the order the chain keeps them. */
 export function PackGrid({ act }: { act: PackAct }) {
   const slots = usePack((state) => state.slots);
-  const equipped = usePack((state) => state.equipped);
+  const equipped = usePack((state) => heldItem(state)?.slot ?? null);
   const [picked, setPicked] = useState<number | null>(null);
   const bySlot = new Map(slots.map((item) => [item.slot, item]));
   const chosen = picked === null ? undefined : bySlot.get(picked);

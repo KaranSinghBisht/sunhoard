@@ -6,6 +6,11 @@ import { uiText } from "../content/text";
 import { cloneLair, scoopable, stepLair, type Lair, type LairIntent } from "../shared/lair";
 import { pushLairIntent, readChainLair } from "./lairFeed";
 import { ORIGIN_X, ORIGIN_Y, roomTiles, sconces, sheetColumn } from "./cellar/room";
+import { drawDanger } from "./fight/danger";
+import { frameRoom } from "./fight/frame";
+import { Juice } from "./fight/juice";
+import { drawSwing } from "./fight/swing";
+import { DropWatch } from "./fight/watch";
 import { showRoomNote } from "./labels";
 import { Night, NIGHT_BELOW } from "./meadow/night";
 import {
@@ -25,6 +30,16 @@ const STEP_MS = 100;
 const MAX_AHEAD = 20;
 const KEEPER_HP = 100;
 const HUD_DEPTH = 6000;
+const TELEGRAPH_STEPS = 6;
+/** shared/lair.ts: the tail sweep reaches 28 around Old Gloam, the dash 20 around where the keeper stands. */
+const TAIL = 4;
+const TAIL_REACH = 28;
+const DASH = 5;
+const DASH_REACH = 20;
+/** The watch's keys: the keeper's HP, the keeper's own blows and the damage they carried. */
+const KEEPER_KEY = 0;
+const BLOWS_KEY = 1;
+const DEALT_KEY = 2;
 
 const LANTERNS = [
   [64, 64],
@@ -52,6 +67,9 @@ export class LairScene extends Phaser.Scene {
   private acc = 0;
   private sent = "";
   private lastAttackCd = 0;
+  private swingAt = -1e9;
+  private readonly watch = new DropWatch();
+  private juice!: Juice;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private keys!: Record<"a" | "d" | "w" | "s" | "shift", Phaser.Input.Keyboard.Key>;
 
@@ -76,6 +94,8 @@ export class LairScene extends Phaser.Scene {
     this.sent = "";
     this.trail = [];
     this.lastAttackCd = 0;
+    this.swingAt = -1e9;
+    this.watch.reset();
     this.cameras.main.setBackgroundColor("#0e1419");
     for (const tile of roomTiles()) this.add.image(tile.x, tile.y, "dungeon", tile.frame).setDepth(0);
     this.shadow = this.add.image(0, 0, "shadow").setAlpha(0.4).setVisible(false);
@@ -99,8 +119,8 @@ export class LairScene extends Phaser.Scene {
 
     this.bars = this.add.graphics().setDepth(HUD_DEPTH);
     this.night = new Night(this, sconces().map((spot) => ({ ...spot, radius: 54, thaw: 0 })), NIGHT_BELOW);
-    this.cameras.main.setBounds(0, 0, 512, 512);
-    this.cameras.main.startFollow(this.keeper, true, 0.2, 0.2);
+    frameRoom(this, this.keeper);
+    this.juice = new Juice(this, HUD_DEPTH);
     this.cursors = this.input.keyboard!.createCursorKeys();
     const add = this.input.keyboard!.addKey.bind(this.input.keyboard);
     this.keys = { a: add("A"), d: add("D"), w: add("W"), s: add("S"), shift: add("SHIFT") };
@@ -145,9 +165,15 @@ export class LairScene extends Phaser.Scene {
     this.shadow.setVisible(Boolean(view));
     this.dragonParts.forEach((part) => part.setVisible(Boolean(view)));
     this.bars.clear();
-    if (!view) return;
+    if (!view) {
+      this.watch.reset();
+      return;
+    }
 
-    if (view.player.attackCd > this.lastAttackCd) playSfx("slash", 0.35);
+    if (view.player.attackCd > this.lastAttackCd) {
+      playSfx("slash", 0.35);
+      this.swingAt = time;
+    }
     this.lastAttackCd = view.player.attackCd;
 
     this.drawLanterns(view.phase);
@@ -159,6 +185,8 @@ export class LairScene extends Phaser.Scene {
     this.shadow.setPosition(this.keeper.x, this.keeper.y + 1).setDepth(this.keeper.y - 0.5);
 
     this.paintDragon(view, time);
+    this.blows(view, time);
+    drawSwing(this.bars, this.keeper.x, this.keeper.y - 6, view.player.facing, time - this.swingAt);
     this.paintShots(view);
     this.paintSparks(view, time);
     this.bar(this.keeper.x - 12, this.keeper.y - 22, 24, view.player.hp / KEEPER_HP, 0xffbc75);
@@ -183,13 +211,36 @@ export class LairScene extends Phaser.Scene {
     this.dragonTail.setPosition(pt.x, pt.y - 24).setDepth(pt.y + 2);
 
     const tint = view.telegraph > 0 ? 0xff9554 : view.phase === 2 ? 0xffe18d : 0xffffff;
+    const flash = this.juice.flashing(this.dragonHead);
     this.dragonParts.forEach((part) => part.setTint(tint));
+    // Only the head and chest flash: the whole rig going white would blank a third of the screen.
+    if (flash) [this.dragonHead, this.dragonBody1].forEach((part) => part.setTintFill(0xffffff));
+    if (view.telegraph > 0) this.warn(view, hx, hy, time);
 
     // Sunhoard ember in the belly socket: intensifies during Noon Unbound.
     const bellyAlpha = view.phase === 2 ? 0.92 : view.phase === 1 ? 0.2 : 0.42;
     const bellyRadius = view.phase === 2 ? 12 : 6;
     this.bars.fillStyle(0xffbc75, bellyAlpha).fillCircle(p1.x, p1.y - 10, bellyRadius);
     this.bars.fillStyle(0xffe18d, bellyAlpha).fillCircle(p2.x, p2.y - 16, bellyRadius * 0.8);
+  }
+
+  /** Where the telegraphed blow will land: the tail's sweep, the dash onto the keeper, or the head winding up. */
+  private warn(view: Lair, hx: number, hy: number, time: number): void {
+    const due = 1 - view.telegraph / TELEGRAPH_STEPS;
+    if (view.attack === TAIL) drawDanger(this.bars, hx, hy, TAIL_REACH, due, time);
+    else if (view.attack === DASH) drawDanger(this.bars, this.keeper.x, this.keeper.y - 4, DASH_REACH, due, time);
+    else drawDanger(this.bars, hx, hy - 6, 14, due, time);
+  }
+
+  /** The keeper's own blows and hurts, shown as they land. Old Gloam's HP stays sealed: nothing here reads it. */
+  private blows(view: Lair, time: number): void {
+    const landed = this.watch.rise(BLOWS_KEY, view.hits, time);
+    const dealt = this.watch.rise(DEALT_KEY, view.unflushed, time);
+    if (landed > 0) {
+      this.juice.hit(this.dragonHead, { fromX: this.keeper.x, fromY: this.keeper.y, amount: dealt, heavy: false });
+    }
+    const lost = this.watch.drop(KEEPER_KEY, view.player.hp, time);
+    if (lost > 0) this.juice.hurt(this.keeper, lost);
   }
 
   private drawLanterns(phase: number): void {
@@ -224,7 +275,8 @@ export class LairScene extends Phaser.Scene {
     if (!view) return uiText("darkHatch");
     if (view.player.hp <= 0) return uiText("fell");
     const phase = view.phase === 0 ? uiText("phaseRime") : view.phase === 1 ? uiText("phaseGloaming") : uiText("phaseNoon");
-    return view.marked ? `${phase} · ${uiText("glareMark")}` : phase;
+    const state = view.marked ? `${phase} · ${uiText("glareMark")}` : phase;
+    return view.hits > 0 ? `${state} · ${uiText("blowsLanded")}: ${view.hits}` : state;
   }
 
   private publish(intent: LairIntent): void {

@@ -5,6 +5,7 @@ import { advanceRoom, aimRoom, enterRoom, leaveRoom } from "../chain/play";
 import { refreshArena } from "../chain/watch";
 import { uiText } from "../content/text";
 import { onDoor } from "../game/bridge";
+import { onRoomExit } from "../game/fight/exit";
 import { onFightChange, onIntent, readChainFight } from "../game/fightFeed";
 import { useStage } from "../game/stage";
 import type { Fight } from "../shared/fight";
@@ -23,6 +24,7 @@ export function CellarButton() {
   const [cleared, setCleared] = useState(() => roomCleared(readChainFight().fight));
   const [room, setRoom] = useState(() => readChainFight().fight?.room ?? 1);
   const knock = useRef<() => void>(() => undefined);
+  const wayOut = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     onIntent((intent) => {
@@ -57,7 +59,9 @@ export function CellarButton() {
     useHud.getState().setBusy(true);
     try {
       if (inside) {
-        if (cleared && room < 6) {
+        // Read at the press, not at the last render: Space can arrive before React has redrawn.
+        const now = readChainFight().fight;
+        if (roomCleared(now) && (now?.room ?? 1) < 6) {
           await advanceRoom(live.rollup, live.session.signer, live.owner, live.session.token, live.link);
         } else {
           await leaveRoom(live.rollup, live.session.signer, live.owner, live.session.token, live.link);
@@ -83,6 +87,20 @@ export function CellarButton() {
   useEffect(() => {
     onDoor(() => knock.current());
     return () => onDoor(null);
+  }, []);
+
+  // Space or Enter in a finished room does the same as this button; the scene asks (game/fight/exit.ts).
+  useEffect(() => {
+    wayOut.current = () => {
+      const fight = readChainFight().fight;
+      const over = roomCleared(fight) || (fight !== null && fight.player.hp <= 0);
+      if (inside && over && !useHud.getState().busy) void go();
+    };
+  });
+
+  useEffect(() => {
+    onRoomExit(() => wayOut.current());
+    return () => onRoomExit(null);
   }, []);
 
   return (

@@ -1,0 +1,62 @@
+/* The notice over the fight when a room is done (game/fight/banner.ts). */
+.fight-banner {
+  position: absolute;
+  left: 50%;
+  top: 14%;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  padding: 8px 24px 10px;
+  color: var(--snow);
+  background: var(--panel);
+  border: 2px solid var(--gold);
+  box-shadow: 0 4px 0 rgba(20, 27, 27, 0.45);
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: fight-banner-in 240ms ease-out;
+}
+
+.fight-banner[hidden] {
+  display: none;
+}
+
+.fight-banner strong {
+  color: var(--gold);
+  font-size: max(var(--head), calc(var(--zoom) * 10px));
+}
+
+.fight-banner span {
+  font-size: max(var(--text), calc(var(--zoom) * 6px));
+  animation: fight-banner-hint 1100ms steps(2, jump-none) infinite alternate;
+}
+
+.fight-banner.fell {
+  border-color: var(--rose);
+}
+
+.fight-banner.fell strong {
+  color: var(--rose);
+}
+
+@keyframes fight-banner-in {
+  from { opacity: 0; margin-top: calc(var(--zoom) * -6px); }
+  to { opacity: 1; margin-top: 0; }
+}
+
+@keyframes fight-banner-hint {
+  from { opacity: 1; }
+  to { opacity: 0.78; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fight-banner,
+  .fight-banner span {
+    animation: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .fight-banner { padding: 4px 10px 5px; white-space: normal; width: max-content; max-width: 94%; }
+}
