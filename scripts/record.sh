@@ -70,6 +70,11 @@ case "${1:-}" in
   settle) admin settle ;;
   next) admin next && admin fund 0.2 ;;
   status) admin status ;;
+  [1-9A-HJ-NP-Za-km-z]*)
+    # A bare wallet address means the kit.
+    wallet_arg "$1"
+    kit "$1"
+    ;;
   *)
     sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
     exit 1
