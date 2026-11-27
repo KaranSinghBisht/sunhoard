@@ -4,7 +4,10 @@ import { playAction } from "../chain/play";
 import { formatHundredths, playerMessage } from "../chain/format";
 import { uiText, type UiKey } from "../content/text";
 import { shopPrice } from "../shared/economy";
+import { BarnPanel } from "./BarnPanel";
 import { ItemIcon } from "./ItemIcon";
+import { kindName } from "./itemLabel";
+import { usePack } from "./pack";
 import { PackGrid } from "./PackGrid";
 import { useHud } from "./store";
 
@@ -49,6 +52,16 @@ const PELL_GOODS: Array<{ kind: number; name: UiKey }> = [
   { kind: 16, name: "gearIronSword" },
 ];
 
+/** What the top bar says once an action has landed, so a click never passes in silence. */
+function doneNote(kind: "craft" | "sell" | "buy" | "eat" | "equip", value: number): string {
+  if (kind === "sell") return uiText("soldNote");
+  if (kind === "buy") return uiText("boughtNote");
+  if (kind === "craft") return uiText("craftedNote");
+  if (kind !== "equip") return "";
+  const item = usePack.getState().slots.find((slot) => slot.slot === value);
+  return item ? `${kindName(item.kind)} ${uiText("equippedNote")}` : "";
+}
+
 type Act = (kind: "craft" | "sell" | "buy" | "eat" | "equip", value: number) => void;
 
 function plain(kind: number) {
@@ -75,25 +88,38 @@ function Workbench({ act }: { act: Act }) {
   );
 }
 
+/** Pell sells for Glints; a good the purse cannot cover is greyed out instead of refused on chain. */
 function Counter({ act }: { act: Act }) {
   const busy = useHud((state) => state.busy);
+  const glints = useHud((state) => state.glints) ?? 0n;
+  const poor = PELL_GOODS.every((good) => shopPrice(good.kind) > glints);
   return (
-    <ul className="recipes">
-      {PELL_GOODS.map((good) => (
-        <li key={good.kind}>
-          <button type="button" disabled={busy} onClick={() => act("buy", good.kind)}>
-            <ItemIcon item={plain(good.kind)} size={24} />
-            {uiText(good.name)}
-          </button>
-          <span className="dim">{formatHundredths(shopPrice(good.kind))}</span>
-        </li>
-      ))}
-    </ul>
+    <>
+      <p className="dim">
+        {uiText("pellBuy")} · {uiText("pellPurse")} <b>{formatHundredths(glints)}</b>
+      </p>
+      {poor ? <p className="warn">{uiText("pellShort")}</p> : null}
+      <ul className="recipes">
+        {PELL_GOODS.map((good) => (
+          <li key={good.kind}>
+            <button type="button" disabled={busy || shopPrice(good.kind) > glints} onClick={() => act("buy", good.kind)}>
+              <ItemIcon item={plain(good.kind)} size={24} />
+              {uiText(good.name)}
+            </button>
+            <span className="dim">{formatHundredths(shopPrice(good.kind))}</span>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
+/** The tabs beside the pack. The barn lives here: it is a place to put what the pack holds. */
+const SIDES = ["workbench", "pell", "barn"] as const;
+type Side = (typeof SIDES)[number];
+
 export function InventoryPanel() {
-  const [side, setSide] = useState<"workbench" | "pell">("workbench");
+  const [side, setSide] = useState<Side>("workbench");
 
   function act(kind: "craft" | "sell" | "buy" | "eat" | "equip", value: number): void {
     const live = getLive();
@@ -102,7 +128,9 @@ export function InventoryPanel() {
       return;
     }
     useHud.getState().setBusy(true);
+    const done = doneNote(kind, value);
     playAction(live.rollup, live.session.signer, live.owner, live.session.token, live.link, kind, value)
+      .then(() => { if (getLive() === live && done) useHud.getState().setNote(done); })
       .catch((err) => { if (getLive() === live) useHud.getState().setNote(playerMessage(err)); })
       .finally(() => { if (getLive() === live) useHud.getState().setBusy(false); });
   }
@@ -115,13 +143,15 @@ export function InventoryPanel() {
       </div>
       <div className="col">
         <div className="tabs" role="tablist">
-          {(["workbench", "pell"] as const).map((id) => (
+          {SIDES.map((id) => (
             <button type="button" key={id} role="tab" className="quiet" aria-selected={side === id} onClick={() => setSide(id)}>
               {uiText(id)}
             </button>
           ))}
         </div>
-        {side === "workbench" ? <Workbench act={act} /> : <Counter act={act} />}
+        {side === "workbench" ? <Workbench act={act} /> : null}
+        {side === "pell" ? <Counter act={act} /> : null}
+        {side === "barn" ? <BarnPanel /> : null}
       </div>
     </aside>
   );

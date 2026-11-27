@@ -57,9 +57,28 @@ export default function App({ onExit }: { onExit: () => void }) {
   );
 }
 
-const WINDOWS: PanelId[] = ["pack", "coldfair", "barn", "thaw", "cheat"];
+const DO: PanelId[] = ["pack", "coldfair", "thaw"];
+/** Set once the How to play window has been opened in this browser. */
+const GUIDE_SEEN = "sunhoard.guideSeen";
 
-/** The row of buttons under the game. The windows they open are drawn over the game screen. */
+function guideSeen(): boolean {
+  try {
+    return window.localStorage.getItem(GUIDE_SEEN) !== null;
+  } catch {
+    // Storage can be blocked; the button then simply stays highlighted.
+    return false;
+  }
+}
+
+function markGuideSeen(): void {
+  try {
+    window.localStorage.setItem(GUIDE_SEEN, "1");
+  } catch {
+    // Nothing to do: the highlight is a convenience, not state the game needs.
+  }
+}
+
+/** The buttons under the game, in three groups. The windows they open are drawn over the game screen. */
 function PlayerActions({ owner }: { owner: string }) {
   const panel = usePanel(state => state.panel);
   const feed = usePanel(state => state.feed);
@@ -69,6 +88,7 @@ function PlayerActions({ owner }: { owner: string }) {
     const key = (event: KeyboardEvent) => {
       if (textInput(event.target) || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
       if (event.key.toLowerCase() === "e") usePanel.getState().toggle("pack");
+      if (event.key.toLowerCase() === "h") usePanel.getState().toggle("guide");
     };
     window.addEventListener("keydown", key);
     return () => {
@@ -77,11 +97,22 @@ function PlayerActions({ owner }: { owner: string }) {
       usePanel.getState().reset();
     };
   }, []);
+  const [fresh, setFresh] = useState(() => !guideSeen());
+  useEffect(() => {
+    if (panel !== "guide" || !fresh) return;
+    markGuideSeen();
+    setFresh(false);
+  }, [panel, fresh]);
+  const opener = (id: PanelId) =>
+    <button type="button" key={id} className="quiet" aria-expanded={panel === id} onClick={() => toggle(id)}>{uiText(id)}</button>;
   return (
-    <div className="actions"><CellarButton /><LairButton /><ClaimButton /><EmberEgg owner={owner} />
-      {WINDOWS.map(id =>
-        <button type="button" key={id} className="quiet" aria-expanded={panel === id} onClick={() => toggle(id)}>{uiText(id)}</button>)}
-      <button type="button" className="quiet" aria-pressed={feed} onClick={toggleFeed}>{uiText("txlog")}</button>
+    <div className="actions">
+      <span className="group"><b>{uiText("groupGo")}</b><CellarButton /><LairButton /></span>
+      <span className="group"><b>{uiText("groupDo")}</b>{DO.map(opener)}</span>
+      <span className="group"><b>{uiText("groupProof")}</b>{opener("cheat")}
+        <button type="button" className="quiet" aria-pressed={feed} onClick={toggleFeed}>{uiText("txlog")}</button></span>
+      <span className={fresh ? "group fresh" : "group"}>{opener("guide")}</span>
+      <span className="group wide"><ClaimButton /><EmberEgg owner={owner} /></span>
     </div>
   );
 }

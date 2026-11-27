@@ -1,8 +1,9 @@
 import { useEffect } from "react";
 import { uiText } from "../content/text";
-import { BarnPanel } from "./BarnPanel";
 import { CheatPanel } from "./CheatPanel";
 import { ColdfairPanel } from "./ColdfairPanel";
+import { GuidePanel } from "./GuidePanel";
+import { HeldSlot } from "./HeldSlot";
 import { InventoryPanel } from "./InventoryPanel";
 import { usePanel } from "./panel";
 import { ThawPanel } from "./ThawPanel";
@@ -28,6 +29,7 @@ export function Windows({ owner, small }: { owner: string; small: boolean }) {
 
   return (
     <>
+      <HeldSlot />
       {feed ? (
         <div className="feed-dock">
           <TxLogPanel />
@@ -46,7 +48,7 @@ export function Windows({ owner, small }: { owner: string; small: boolean }) {
             </button>
             {panel === "pack" ? <InventoryPanel /> : null}
             {panel === "coldfair" ? <ColdfairPanel owner={owner} /> : null}
-            {panel === "barn" ? <BarnPanel /> : null}
+            {panel === "guide" ? <GuidePanel /> : null}
             {panel === "thaw" ? <ThawPanel /> : null}
             {panel === "cheat" ? <CheatPanel /> : null}
           </section>

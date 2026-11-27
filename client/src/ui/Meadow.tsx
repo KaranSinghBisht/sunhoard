@@ -10,7 +10,7 @@ import { rollupEndpoint } from "../chain/explorer";
 import { playerMessage } from "../chain/format";
 import { enterMeadow, walletSigner } from "../chain/login";
 import { ownedPda } from "../chain/pdas";
-import { inRange, nextPost, type Pace } from "../chain/pace";
+import { POST_GAP_MS, inRange, nextPost, type Pace } from "../chain/pace";
 import { chopAndRoll } from "../chain/chop";
 import { postMove } from "../chain/play";
 import { openProgram } from "../chain/program";
@@ -24,6 +24,7 @@ import { pullAccounts, watchAccounts, watchArena } from "../chain/watch";
 import { uiText } from "../content/text";
 import { setBridge, type MoveReport } from "../game/bridge";
 import { createGame } from "../game/createGame";
+import { beginSwing, swingFailed } from "../game/gatherState";
 import { bindGame } from "../game/stage";
 import { useHud } from "./store";
 import { stopMusic } from "../art/sound";
@@ -222,17 +223,42 @@ async function place(current: Play | null, owner: PublicKey, report: MoveReport)
   }
 }
 
+/** How long a chop waits for the chain's copy of the keeper to reach the node, ms. */
+const CATCH_UP_MS = 6000;
+
+function pause(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+/**
+ * The chain moves a keeper at most one step a second, so its copy can trail the
+ * one on screen. A chop waits for it to arrive instead of failing as "too far".
+ */
+async function catchUp(current: Play, owner: PublicKey, report: { x: number; y: number; nodeX: number; nodeY: number }): Promise<boolean> {
+  const until = Date.now() + CATCH_UP_MS;
+  while (Date.now() < until && connectionActive(current.rollup)) {
+    const { pace } = current;
+    if (pace.posted && inRange(pace.x, pace.y, report.nodeX, report.nodeY)) return true;
+    const due = !pace.posted || Date.now() - pace.at >= POST_GAP_MS;
+    if (current.busy || !due) await pause(80);
+    else await place(current, owner, { x: report.x, y: report.y, facing: 0 });
+  }
+  return false;
+}
+
 async function chopAt(
   current: Play,
   owner: PublicKey,
   report: { x: number; y: number; nodeX: number; nodeY: number; node?: number },
 ): Promise<void> {
-  const placed = await place(current, owner, { x: report.x, y: report.y, facing: 0 });
-  if (!placed) return;
-  if (!inRange(current.pace.x, current.pace.y, report.nodeX, report.nodeY)) {
-    useHud.getState().setNote(uiText("closer"));
+  const node = report.node ?? 0;
+  // Space answers at once: the swing is under way from this moment, whatever the chain still has to catch up on.
+  if (!beginSwing(node)) return;
+  if (!(await catchUp(current, owner, report))) {
+    swingFailed();
+    if (connectionActive(current.rollup)) useHud.getState().setNote(uiText("closer"));
     return;
   }
   const { rollup, session, link } = current;
-  await chopAndRoll(rollup, session.signer, owner, session.token, link, report.nodeX, report.nodeY, report.node ?? 0);
+  await chopAndRoll(rollup, session.signer, owner, session.token, link, report.nodeX, report.nodeY, node);
 }

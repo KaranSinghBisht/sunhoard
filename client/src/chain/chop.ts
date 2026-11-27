@@ -3,7 +3,7 @@
 import type { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import type { Program } from "@coral-xyz/anchor";
 import { uiText } from "../content/text";
-import { beginSwing, resetGather, rollLanded, swingFailed, swingLanded } from "../game/gatherState";
+import { resetGather, rollLanded, swingFailed, swingLanded } from "../game/gatherState";
 import { tell } from "../game/story/tale";
 import { kindName } from "../ui/itemLabel";
 import { usePack } from "../ui/pack";
@@ -71,8 +71,8 @@ async function awaitRoll(rollup: Connection, program: Program, owner: PublicKey,
 }
 
 /**
- * Sends one gather and follows it to the end. A second call while the first is
- * under way sends nothing: the chain would only refuse it.
+ * Sends one gather and follows it to the end. The caller has already called
+ * `beginSwing`, which is what holds a second chop back while this one runs.
  */
 export async function chopAndRoll(
   rollup: Connection,
@@ -84,7 +84,6 @@ export async function chopAndRoll(
   nodeY: number,
   node: number,
 ): Promise<void> {
-  if (!beginSwing(node)) return;
   const program = openProgram(rollup);
   const before = totals();
   try {

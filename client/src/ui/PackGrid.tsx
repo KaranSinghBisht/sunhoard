@@ -29,6 +29,7 @@ function Cell({ item, chosen, equipped, onPick }: { item?: SlotView; chosen: boo
         <ItemIcon item={item} />
         {item.quantity > 1 ? <b className="count">{item.quantity}</b> : null}
         {(item.flags & DEMO) !== 0 ? <i className="mark" aria-hidden="true" /> : null}
+        {equipped ? <b className="held">{uiText("heldTag")}</b> : null}
       </button>
     </li>
   );
@@ -45,7 +46,7 @@ function Detail({ item, equipped, act }: { item: SlotView; equipped: boolean; ac
       <ItemIcon item={item} size={48} />
       <p className="what">
         {itemLabel(item)}
-        {equipped ? <span className="tag"> · {uiText("equipped")}</span> : null}
+        {equipped ? <span className="worn"> · {uiText("equipped")}</span> : null}
       </p>
       <span className="acts">
         {item.kind === KIND_MEAL && !sealed ? (
@@ -54,8 +55,8 @@ function Detail({ item, equipped, act }: { item: SlotView; equipped: boolean; ac
           </button>
         ) : null}
         {isGear(item.kind) ? (
-          <button type="button" disabled={busy} onClick={() => act("equip", item.slot)}>
-            {uiText("equip")}
+          <button type="button" disabled={busy || equipped} onClick={() => act("equip", item.slot)}>
+            {uiText(equipped ? "alreadyHeld" : "equip")}
           </button>
         ) : null}
         {sealed ? (

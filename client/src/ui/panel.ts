@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 /** A window that opens over the game screen. Only one is open at a time. */
-export type PanelId = "pack" | "coldfair" | "barn" | "thaw" | "cheat";
+export type PanelId = "pack" | "coldfair" | "thaw" | "cheat" | "guide";
 
 interface PanelState {
   panel: PanelId | null;

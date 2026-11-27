@@ -17,7 +17,7 @@ import { meadow, type Meadow } from "./meadow/props";
 import { FIRE_COL, FIRE_ROW, LAMPS, NELL_COL, NELL_ROW, footX, footY } from "./meadow/sites";
 import { Sky } from "./meadow/sky";
 import { Felling } from "./meadow/felling";
-import { useAt, type Use } from "./meadow/uses";
+import { USES, useAt, type Use } from "./meadow/uses";
 import { tickGather, useGather } from "./gatherState";
 import { Waymark } from "./meadow/waymark";
 import {
@@ -46,6 +46,10 @@ const SPEED = 80;
 const REPORT_MS = 500;
 const CARRIED_GLOW = 34;
 const WALK_IN_SPEED = 44;
+/** Another keeper is drawn only if they moved this recently; someone who left would otherwise stand there for good. */
+const PEER_FRESH_SECS = 90;
+/** Other keepers wear a warm tint, so nobody takes one for their own keeper. */
+const PEER_TINT = 0xffb37a;
 const RIGHT_COLUMN = 3;
 const TONE_HEX = [0xe0394c, 0xf1c471, 0x79b8ce, 0xa5608b];
 const SHEET_FILES: Record<(typeof SHEET_KEYS)[number], string> = { nature: NATURE, camp: CAMP, house: HOUSE, relief: RELIEF };
@@ -107,7 +111,7 @@ export class OverworldScene extends Phaser.Scene {
     this.shadow = this.add.image(this.x, this.y, "shadow").setAlpha(0.35);
     this.keeper = this.add.sprite(this.x, this.y, "keeper", 0).setOrigin(0.5, 0.85);
     this.peers = Array.from({ length: 12 }, () =>
-      this.add.sprite(0, 0, "keeper", 0).setOrigin(0.5, 0.85).setTint(0xb8dce5).setVisible(false),
+      this.add.sprite(0, 0, "keeper", 0).setOrigin(0.5, 0.85).setTint(PEER_TINT).setAlpha(0.9).setVisible(false),
     );
     this.postGlows = this.add.graphics().setDepth(5002);
     this.night = new Night(this, this.land.lights);
@@ -174,9 +178,10 @@ export class OverworldScene extends Phaser.Scene {
 
   private paintPeers(time: number): void {
     const self = getLive()?.owner.toBase58() ?? "";
+    const now = Date.now() / 1000;
     const rows = useWorld
       .getState()
-      .presence.filter((row) => row.player !== self && row.zone === 0 && row.x > 0 && row.y > 0);
+      .presence.filter((row) => row.player !== self && row.zone === 0 && row.x > 0 && row.y > 0 && now - row.updated <= PEER_FRESH_SECS);
     this.peers.forEach((sprite, index) => {
       const peer = rows[index];
       if (!peer) {
@@ -252,11 +257,14 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private placeProps(): void {
+    const nodes = new Map<number, Phaser.GameObjects.Image>();
     for (const prop of this.land.props) {
       const image = this.add.image(prop.x, prop.y, KINDS[prop.kind].sheet, prop.kind).setOrigin(0.5, 1).setDepth(prop.y);
       if (isBirch(prop.kind)) this.birch = image;
+      const node = nodeAt(prop.x, prop.y);
+      if (node !== undefined) nodes.set(node, image);
     }
-    this.felling = new Felling(this, this.birch);
+    this.felling = new Felling(this, nodes);
   }
 
   private lightFire(): void {
@@ -329,6 +337,11 @@ function hintFor(use: Use): string {
   if (phase === "swing") return uiText("chopSwing");
   if (phase === "roll") return uiText("chopRolling");
   return uiText(use.node === 0 ? "chopRest" : "nodeRest");
+}
+
+/** The gather node whose sprite stands at (x,y), if one does. */
+function nodeAt(x: number, y: number): number | undefined {
+  return USES.find((use) => use.act === "chop" && Math.abs(use.x - x) <= 8 && Math.abs(use.y - y) <= 8)?.node;
 }
 
 function isBirch(kind: KindName): boolean {
