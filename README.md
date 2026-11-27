@@ -140,7 +140,7 @@ cargo +1.93.0 test --manifest-path tests-magicsvm-rs/Cargo.toml   # 5 end-to-end
 # client
 cd client
 corepack yarn typecheck
-corepack yarn test                                          # 43 tests
+corepack yarn test                                          # 65 tests
 ```
 
 The flows need both binaries: four load `target/sbf-debug/sunhoard.so`, which adds `debug_grant` and `debug_kill`,
