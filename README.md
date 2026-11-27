@@ -4,6 +4,8 @@ A 2D pixel RPG that runs on MagicBlock's Ephemeral Rollups. Chop, mine and fight
 loot that was fixed the moment it dropped, trade it at a player market whose fee feeds the dragon's hoard, then climb
 to the Noonless Crater and split the pot when Old Gloam falls.
 
+**Play it: https://sunhoard.vercel.app** (Solana devnet; "Use a guest key" needs no wallet).
+
 **Devnet only.** Nothing here uses real money.
 
 - Program: `FxqDh8g5KcZbEzg4AJsX5yUit6A63BC5PoncdWjtBKqS` (Solana devnet)
