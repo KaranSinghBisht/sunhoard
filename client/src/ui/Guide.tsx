@@ -14,8 +14,9 @@ const KEYS: Array<[key: UiKey, does: UiKey]> = [
  * `canRetell` is false while the cellar is on the canvas, because the opening is told over the meadow.
  */
 export function Guide({ onBegin, canRetell, onPractice }: { onBegin: (retell: boolean) => void; canRetell: boolean; onPractice?: () => void }) {
+  // The title screen has no game running behind it yet, so it brings its own view of the meadow.
   return (
-    <section className="guide">
+    <section className={onPractice ? "guide backdrop" : "guide"}>
       <div className="card">
         <p className="kicker">{uiText("tagline")}</p>
         <h1>{uiText("title")}</h1>

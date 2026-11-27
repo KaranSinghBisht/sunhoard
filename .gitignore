@@ -7,3 +7,4 @@ dist/
 assets-src/
 *keypair*.json
 .omc/
+.vercel

@@ -488,3 +488,26 @@
 .aurora-chip.up b {
   color: var(--teal);
 }
+
+/* The title screen: the meadow at night behind the card, darkened so the card stays the thing to look at. */
+.guide.backdrop {
+  background:
+    radial-gradient(ellipse at center, rgba(20, 27, 27, 0.5) 0%, rgba(20, 27, 27, 0.82) 80%),
+    url("/assets/title/meadow.png") center / cover no-repeat;
+  image-rendering: pixelated;
+  animation: meadow-drift 70s ease-in-out infinite alternate;
+}
+
+.guide.backdrop .card {
+  background: rgba(20, 27, 27, 0.9);
+  image-rendering: auto;
+}
+
+@keyframes meadow-drift {
+  from { background-position: center, 42% 46%; background-size: auto, 112%; }
+  to { background-position: center, 58% 54%; background-size: auto, 118%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide.backdrop { animation: none; }
+}

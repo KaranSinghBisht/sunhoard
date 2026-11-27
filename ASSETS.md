@@ -11,4 +11,6 @@ Packs from the art direction. `assets-src/` stays gitignored. The files below ar
 | Kenney Impact Sounds | CC0 | `kenney_impact-sounds.zip` | Mining, metal, bell, wood | — |
 | Pixelify Sans | OFL 1.1 | `PixelifySans[wght].ttf` plus `OFL.txt` | UI text. Keep `OFL.txt` beside the font | `PixelifySans[wght].ttf`, `OFL.txt` |
 
+The title screen's backdrop, `client/public/assets/title/meadow.png`, is a capture of the game's own meadow scene, so it is made only of the art above. The favicon, `client/public/favicon.svg`, is drawn in code: the swallowed sun as a gold ring.
+
 Do not ship Ninja Adventure's `Ui/Font/NormalFont.ttf`. Audio is converted to MP3. No MagicBlock logo, and no art from other games.
