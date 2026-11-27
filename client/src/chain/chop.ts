@@ -5,6 +5,7 @@ import type { Program } from "@coral-xyz/anchor";
 import { uiText } from "../content/text";
 import { resetGather, rollLanded, swingFailed, swingLanded } from "../game/gatherState";
 import { tell } from "../game/story/tale";
+import { auroraNow } from "../shared/aurora";
 import { kindName } from "../ui/itemLabel";
 import { usePack } from "../ui/pack";
 import { useHud } from "../ui/store";
@@ -101,7 +102,7 @@ export async function chopAndRoll(
     const base = totals();
     const got = gained(before, base) || uiText("chopDone");
     swingLanded(got);
-    useHud.getState().setNote(`${got} · ${uiText("chopRolling")}`);
+    useHud.getState().setNote(`${got} · ${uiText(auroraNow().up ? "chopRollingAurora" : "chopRolling")}`);
     if (node === 0) tell({ kind: "chopped" });
     await awaitRoll(rollup, program, owner, base);
   } catch (err) {

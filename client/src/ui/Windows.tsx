@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { uiText } from "../content/text";
+import { AuroraChip } from "./AuroraChip";
 import { CheatPanel } from "./CheatPanel";
 import { ColdfairPanel } from "./ColdfairPanel";
 import { GuidePanel } from "./GuidePanel";
@@ -29,6 +30,7 @@ export function Windows({ owner, small }: { owner: string; small: boolean }) {
 
   return (
     <>
+      <AuroraChip />
       <HeldSlot />
       {feed ? (
         <div className="feed-dock">

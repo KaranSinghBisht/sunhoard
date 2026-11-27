@@ -19,6 +19,7 @@ import { Sky } from "./meadow/sky";
 import { Felling } from "./meadow/felling";
 import { USES, useAt, type Use } from "./meadow/uses";
 import { tickGather, useGather } from "./gatherState";
+import { auroraNow } from "../shared/aurora";
 import { Waymark } from "./meadow/waymark";
 import {
   CAMP,
@@ -335,7 +336,7 @@ function hintFor(use: Use): string {
   const { phase } = useGather.getState();
   if (use.act !== "chop" || phase === "idle") return uiText(use.hint);
   if (phase === "swing") return uiText("chopSwing");
-  if (phase === "roll") return uiText("chopRolling");
+  if (phase === "roll") return uiText(auroraNow().up ? "chopRollingAurora" : "chopRolling");
   return uiText(use.node === 0 ? "chopRest" : "nodeRest");
 }
 

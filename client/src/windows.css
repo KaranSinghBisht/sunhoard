@@ -457,3 +457,34 @@
 .held-slot:hover:not(:disabled) {
   background: rgba(59, 54, 67, 0.92);
 }
+
+/* The aurora clock, in the top corner of the meadow. */
+.aurora-chip {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  z-index: 4;
+  display: grid;
+  gap: 1px;
+  padding: 4px 8px;
+  color: var(--soft);
+  background: rgba(20, 27, 27, 0.78);
+  border: 2px solid var(--night);
+  font-size: 13px;
+  line-height: 1.2;
+  pointer-events: none;
+}
+
+.aurora-chip b {
+  font-weight: 400;
+  font-size: var(--text);
+  color: var(--snow);
+}
+
+.aurora-chip.up {
+  border-color: var(--teal);
+}
+
+.aurora-chip.up b {
+  color: var(--teal);
+}
