@@ -29,8 +29,6 @@
   "emptyPack": "The pack is empty.",
   "filled": "Stacks",
   "chop": "Chop",
-  "chopped": "Wood is in the pack. The roll is still coming.",
-  "bonus": "The roll landed.",
   "needSession": "Enter the meadow first.",
   "closer": "Step closer, then chop.",
   "signedOut": "No wallet yet.",
@@ -257,5 +255,15 @@
   "thawDust": "Only frost dust inside that one.",
   "freeThaw": "No fee.",
   "sellPell": "Sell to Pell",
-  "listFair": "List at the Coldfair"
+  "listFair": "List at the Coldfair",
+  "chopSwing": "Swinging...",
+  "chopRolling": "Rolling for an aberration...",
+  "chopMiss": "No aberration this time.",
+  "chopBonus": "Aberration!",
+  "chopRolled": "The roll has landed.",
+  "chopLate": "The roll did not arrive. Try again.",
+  "chopRest": "The birch is growing back...",
+  "nodeRest": "Give it a moment...",
+  "chopDone": "Gathered.",
+  "outOfEnergy": "Not enough energy. It refills 1 every 36 s."
 }

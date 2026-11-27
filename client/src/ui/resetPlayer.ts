@@ -1,7 +1,7 @@
 import { setLive } from "../chain/live";
 import { resetTxLog } from "../chain/txlog";
-import { armChop } from "../chain/watch";
 import { setChainFight } from "../game/fightFeed";
+import { resetGather } from "../game/gatherState";
 import { setChainLair } from "../game/lairFeed";
 import { showScene, useStage } from "../game/stage";
 import { useAnvil } from "./anvil";
@@ -16,7 +16,7 @@ import { useWorld } from "./world";
 export function resetPlayer(keepReceipts = false): void {
   setLive(null);
   if (!keepReceipts) resetTxLog();
-  armChop();
+  resetGather();
   setChainFight(null, false);
   setChainLair(null, false);
   if (useStage.getState().scene !== "overworld") showScene("overworld");

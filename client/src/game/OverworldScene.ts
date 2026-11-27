@@ -16,7 +16,9 @@ import { Night } from "./meadow/night";
 import { meadow, type Meadow } from "./meadow/props";
 import { FIRE_COL, FIRE_ROW, LAMPS, NELL_COL, NELL_ROW, footX, footY } from "./meadow/sites";
 import { Sky } from "./meadow/sky";
-import { useAt } from "./meadow/uses";
+import { Felling } from "./meadow/felling";
+import { useAt, type Use } from "./meadow/uses";
+import { tickGather, useGather } from "./gatherState";
 import { Waymark } from "./meadow/waymark";
 import {
   CAMP,
@@ -55,6 +57,7 @@ export class OverworldScene extends Phaser.Scene {
   private keeper!: Phaser.GameObjects.Sprite;
   private shadow!: Phaser.GameObjects.Image;
   private birch?: Phaser.GameObjects.Image;
+  private felling!: Felling;
   private land!: Meadow;
   private night!: Night;
   private sky!: Sky;
@@ -136,7 +139,9 @@ export class OverworldScene extends Phaser.Scene {
     const y = Math.round(this.y);
     const use = this.mode === "play" ? useAt(x, y) : undefined;
     const view = this.cameras.main.worldView;
-    if (use) showTag(uiText(use.hint), use.x - view.x, use.y - use.lift - view.y);
+    tickGather();
+    this.felling.sync(view.x, view.y);
+    if (use) showTag(hintFor(use), use.x - view.x, use.y - use.lift - view.y);
     else hideTag();
     this.lead(time, x, y, Boolean(use));
     this.keeper.setPosition(x, y).setFrame(keeperFrame(this.column, moving, time)).setDepth(y);
@@ -251,6 +256,7 @@ export class OverworldScene extends Phaser.Scene {
       const image = this.add.image(prop.x, prop.y, KINDS[prop.kind].sheet, prop.kind).setOrigin(0.5, 1).setDepth(prop.y);
       if (isBirch(prop.kind)) this.birch = image;
     }
+    this.felling = new Felling(this, this.birch);
   }
 
   private lightFire(): void {
@@ -302,7 +308,8 @@ export class OverworldScene extends Phaser.Scene {
     if (this.mode === "talk") return nextLine();
     const use = useAt(Math.round(this.x), Math.round(this.y));
     if (use?.act === "door") knock();
-    if (use?.act === "chop") this.gather(use.node ?? 0, use.x, use.y);
+    // A gather already under way holds Space back: the chain would refuse a second one.
+    if (use?.act === "chop" && useGather.getState().phase === "idle") this.gather(use.node ?? 0, use.x, use.y);
     if (use?.act === "talk") speak("nellName", NELL_FACE, ["nell1", "nell3"]);
   }
 
@@ -313,6 +320,15 @@ export class OverworldScene extends Phaser.Scene {
     playSfx(node >= 1 && node <= 3 ? "mine" : "chop");
     gameBridge().chop({ x: Math.round(this.x), y: Math.round(this.y), nodeX, nodeY, node });
   }
+}
+
+/** The tag over a gather node says what it is waiting for while Space is held back. */
+function hintFor(use: Use): string {
+  const { phase } = useGather.getState();
+  if (use.act !== "chop" || phase === "idle") return uiText(use.hint);
+  if (phase === "swing") return uiText("chopSwing");
+  if (phase === "roll") return uiText("chopRolling");
+  return uiText(use.node === 0 ? "chopRest" : "nodeRest");
 }
 
 function isBirch(kind: KindName): boolean {

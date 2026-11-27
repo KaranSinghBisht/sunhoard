@@ -23,6 +23,11 @@ const KIND_NAME: Record<number, UiKey> = {
   19: "gearGildedBlade",
 };
 
+/** The plain name of a stackable kind, such as "Wood". */
+export function kindName(kind: number): string {
+  return uiText(KIND_NAME[kind] ?? "unknownItem");
+}
+
 const TONE_NAME = ["toneDawn", "toneNoon", "toneBlueHour", "toneDusk"] as const;
 const GRADE_NAME = ["gradeDim", "gradeGlowing", "gradeBright", "gradeRadiant", "gradeBlazing"] as const;
 const RARITY_NAME = ["rarityCommon", "rarityUncommon", "rarityRare", "rarityEpic", "rarityLegendary"] as const;

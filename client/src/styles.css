@@ -629,6 +629,32 @@ button.small {
   animation: bob 900ms steps(2, jump-none) infinite alternate;
 }
 
+/* A result that floats up from where it happened: "+2 Wood". */
+.pop {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 2px 8px 3px;
+  color: var(--snow);
+  background: rgba(20, 27, 27, 0.86);
+  border: 2px solid var(--moss);
+  font-size: max(var(--text), calc(var(--zoom) * 6px));
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
+  animation: pop-up 1800ms ease-out forwards;
+}
+
+.pop.gain { color: var(--moss); }
+.pop.bonus { color: var(--ink); background: var(--gold); border-color: var(--ink); }
+.pop.miss { color: var(--soft); border-color: var(--night); }
+
+@keyframes pop-up {
+  0% { opacity: 0; margin-top: 0; }
+  12% { opacity: 1; }
+  75% { opacity: 1; }
+  100% { opacity: 0; margin-top: calc(var(--zoom) * -22px); }
+}
+
 /* The line under the fight in the cellar. */
 .room-note {
   position: absolute;

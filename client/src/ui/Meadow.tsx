@@ -11,7 +11,8 @@ import { playerMessage } from "../chain/format";
 import { enterMeadow, walletSigner } from "../chain/login";
 import { ownedPda } from "../chain/pdas";
 import { inRange, nextPost, type Pace } from "../chain/pace";
-import { chopTree, postMove } from "../chain/play";
+import { chopAndRoll } from "../chain/chop";
+import { postMove } from "../chain/play";
 import { openProgram } from "../chain/program";
 import { createSession, type LiveSession } from "../chain/session";
 import { requireCurrent, scopeConnection, connectionActive } from "../chain/ownership";
@@ -19,7 +20,7 @@ import { resetPlayer } from "./resetPlayer";
 import { tell } from "../game/story/tale";
 import { log } from "../chain/log";
 import { setLive } from "../chain/live";
-import { armChop, pullAccounts, watchAccounts, watchArena } from "../chain/watch";
+import { pullAccounts, watchAccounts, watchArena } from "../chain/watch";
 import { uiText } from "../content/text";
 import { setBridge, type MoveReport } from "../game/bridge";
 import { createGame } from "../game/createGame";
@@ -232,23 +233,6 @@ async function chopAt(
     useHud.getState().setNote(uiText("closer"));
     return;
   }
-  armChop();
-  try {
-    await chopTree(
-      current.rollup,
-      current.session.signer,
-      owner,
-      current.session.token,
-      current.link,
-      report.nodeX,
-      report.nodeY,
-      report.node ?? 0,
-    );
-    if (connectionActive(current.rollup)) {
-      useHud.getState().setNote(uiText("chopped"));
-      if (!report.node) tell({ kind: "chopped" });
-    }
-  } catch (err) {
-    if (connectionActive(current.rollup)) useHud.getState().setNote(playerMessage(err));
-  }
+  const { rollup, session, link } = current;
+  await chopAndRoll(rollup, session.signer, owner, session.token, link, report.nodeX, report.nodeY, report.node ?? 0);
 }

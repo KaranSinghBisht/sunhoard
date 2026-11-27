@@ -22,10 +22,21 @@ const SEASON_DEMO_MODE = 1 << 0;
 const SEASON_HAS_KILLER = 1 << 1;
 const SEASON_HAS_EMBER = 1 << 2;
 
-let lastWood: number | null = null;
+/** Reads the pack alone, for the moments a chop needs it fresher than the subscription. */
+export async function pullPack(connection: Connection, program: Program, owner: PublicKey): Promise<void> {
+  await readAccount(connection, program, ownedPda("inventory", owner), readPack);
+}
 
-export function armChop(): void {
-  lastWood = null;
+/** `GATHER_PENDING` in state/bits.rs: a gather's VRF roll has not come back yet. */
+const GATHER_PENDING = 1 << 0;
+
+/** True while the last gather's roll is still out; null when the player account cannot be read. */
+export async function gatherPending(connection: Connection, program: Program, owner: PublicKey): Promise<boolean | null> {
+  const info = await connection.getAccountInfo(ownedPda("player", owner));
+  if (!info) return null;
+  const player = decode(program, "Player", info.data);
+  const flags = asNumber(player?.gatherFlags ?? player?.gather_flags);
+  return flags === null ? null : (flags & GATHER_PENDING) !== 0;
 }
 
 type Stop = () => Promise<void>;
@@ -258,8 +269,6 @@ export function readPack(program: Program, data: Buffer): number | null {
   const stacks = asNumber(inventory?.count);
   if (stacks !== null) useHud.getState().setHud({ stacks });
   const wood = woodQuantity(inventory);
-  if (wood !== null && lastWood !== null && wood > lastWood) useHud.getState().setNote(uiText("bonus"));
-  if (wood !== null) lastWood = wood;
   useShells.getState().setShells(shellsOf(inventory));
   usePack.getState().setPack(packOf(inventory), usePack.getState().equipped);
   return wood;
