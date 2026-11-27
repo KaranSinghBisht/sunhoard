@@ -6,6 +6,7 @@ import { buyListing, cancelListing, listItem, strikeAnvil } from "../chain/play"
 import { uiText } from "../content/text";
 import { charterValue, marketQuote, planStrike } from "../shared/economy";
 import { useAnvil } from "./anvil";
+import { ItemIcon } from "./ItemIcon";
 import { itemLabel } from "./itemLabel";
 import { BOUND, CRACKING, FORGING, LISTED, SEALED, useMarket, type ListingView } from "./market";
 import { KIND_MEAL, isGear, usePack, type SlotView } from "./pack";
@@ -52,7 +53,9 @@ function Listings({ owner }: { owner: string }) {
           const mine = listing.seller === owner;
           return (
             <li key={`${listing.id}:${listing.revision}`}>
-              <span className="what">{itemLabel(listing)}</span>
+              <span className="what">
+                <ItemIcon item={listing} size={24} /> {itemLabel(listing)}
+              </span>
               <span className="acts">
                 <b className="dim">{formatHundredths(BigInt(listing.price))}</b>
                 <button type="button" disabled={busy} onClick={() => run((live) => trade(live, listing, mine))}>
@@ -203,12 +206,16 @@ function Anvil() {
 
 export function ColdfairPanel({ owner }: { owner: string }) {
   return (
-    <aside className="panel">
-      <h2>{uiText("coldfair")}</h2>
-      <Listings owner={owner} />
-      <ListForm />
-      <h2>{uiText("anvil")}</h2>
-      <Anvil />
+    <aside className="panel fair">
+      <div className="col">
+        <h2>{uiText("coldfair")}</h2>
+        <Listings owner={owner} />
+        <ListForm />
+      </div>
+      <div className="col">
+        <h2>{uiText("anvil")}</h2>
+        <Anvil />
+      </div>
     </aside>
   );
 }

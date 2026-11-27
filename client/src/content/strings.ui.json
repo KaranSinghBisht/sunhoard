@@ -250,5 +250,12 @@
   "cheatWorld": "World: Old Gloam's health and the loot seals",
   "cheatPurse": "Your purse",
   "cheatNull": "null",
-  "cheatBytes": "bytes"
+  "cheatBytes": "bytes",
+  "pickSlot": "Pick a slot to see what it holds.",
+  "close": "Close (Esc)",
+  "thawGot": "Inside:",
+  "thawDust": "Only frost dust inside that one.",
+  "freeThaw": "No fee.",
+  "sellPell": "Sell to Pell",
+  "listFair": "List at the Coldfair"
 }

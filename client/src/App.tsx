@@ -4,25 +4,21 @@ import { uiText } from "./content/text";
 import { setTouring, useStage } from "./game/stage";
 import { textInput } from "./game/touch";
 import { beginTale, useTale } from "./game/story/tale";
-import { BarnPanel } from "./ui/BarnPanel";
 import { CellarButton } from "./ui/CellarButton";
-import { CheatPanel } from "./ui/CheatPanel";
 import { Cinema } from "./ui/Cinema";
 import { EmberEgg } from "./ui/EmberEgg";
 import { ClaimButton } from "./ui/ClaimButton";
-import { ColdfairPanel } from "./ui/ColdfairPanel";
 import { Guide } from "./ui/Guide";
 import { Hud } from "./ui/Hud";
-import { InventoryPanel } from "./ui/InventoryPanel";
 import { Labels } from "./ui/Labels";
 import { LairButton } from "./ui/LairButton";
 import { Meadow } from "./ui/Meadow";
 import { Quest } from "./ui/Quest";
 import { Talk } from "./ui/Talk";
-import { ThawPanel } from "./ui/ThawPanel";
 import { TouchControls } from "./ui/TouchControls";
-import { TxLogPanel } from "./ui/TxLogPanel";
 import { useFit } from "./ui/useFit";
+import { usePanel, type PanelId } from "./ui/panel";
+import { Windows } from "./ui/Windows";
 import { useHud } from "./ui/store";
 
 export default function App({ onExit }: { onExit: () => void }) {
@@ -46,6 +42,7 @@ export default function App({ onExit }: { onExit: () => void }) {
           {panels && <Labels />}
           {playing && <Cinema />}
           {panels && <Talk />}
+          {panels && ready && <Windows key={owner} owner={owner} small={zoom < 2} />}
         </div>
         {panels && <TouchControls combat={scene !== "overworld"} />}
         {panels && <Quest narrow={scene !== "overworld"} />}
@@ -60,27 +57,31 @@ export default function App({ onExit }: { onExit: () => void }) {
   );
 }
 
+const WINDOWS: PanelId[] = ["pack", "coldfair", "barn", "thaw", "cheat"];
+
+/** The row of buttons under the game. The windows they open are drawn over the game screen. */
 function PlayerActions({ owner }: { owner: string }) {
-  const [panel, setPanel] = useState<"pack" | "coldfair" | "barn" | "thaw" | "txlog" | "cheat" | null>(null);
+  const panel = usePanel(state => state.panel);
+  const feed = usePanel(state => state.feed);
+  const toggle = usePanel(state => state.toggle);
+  const toggleFeed = usePanel(state => state.toggleFeed);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (textInput(event.target) || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
-      if (event.key.toLowerCase() === "e") setPanel(current => current === "pack" ? null : "pack");
+      if (event.key.toLowerCase() === "e") usePanel.getState().toggle("pack");
     };
     window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
+    return () => {
+      window.removeEventListener("keydown", key);
+      // A wallet change remounts this row; the next player starts with nothing open.
+      usePanel.getState().reset();
+    };
   }, []);
-  return <>
+  return (
     <div className="actions"><CellarButton /><LairButton /><ClaimButton /><EmberEgg owner={owner} />
-      {(["pack", "coldfair", "barn", "thaw", "txlog", "cheat"] as const).map(id =>
-        <button type="button" key={id} className="quiet" aria-expanded={panel === id}
-          onClick={() => setPanel(panel === id ? null : id)}>{uiText(id)}</button>)}
+      {WINDOWS.map(id =>
+        <button type="button" key={id} className="quiet" aria-expanded={panel === id} onClick={() => toggle(id)}>{uiText(id)}</button>)}
+      <button type="button" className="quiet" aria-pressed={feed} onClick={toggleFeed}>{uiText("txlog")}</button>
     </div>
-    {panel === "pack" && <InventoryPanel />}
-    {panel === "coldfair" && <ColdfairPanel owner={owner} />}
-    {panel === "barn" && <BarnPanel />}
-    {panel === "thaw" && <ThawPanel />}
-    {panel === "txlog" && <TxLogPanel />}
-    {panel === "cheat" && <CheatPanel />}
-  </>;
+  );
 }

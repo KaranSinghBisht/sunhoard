@@ -1,0 +1,330 @@
+/* Windows that open over the game screen, and the pack's slot grid. */
+.pixel-art {
+  image-rendering: pixelated;
+  vertical-align: middle;
+}
+
+.shade {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  background: rgba(20, 27, 27, 0.55);
+}
+
+/* A canvas too small to hold a window: the window covers the page instead. */
+.shade.whole {
+  position: fixed;
+  z-index: 20;
+  background: rgba(20, 27, 27, 0.9);
+}
+
+.window {
+  position: relative;
+  width: min(100%, 620px);
+  max-height: 100%;
+  overflow: auto;
+  background: var(--panel);
+  border: 2px solid var(--gold);
+  box-shadow:
+    0 0 0 2px var(--ink),
+    0 14px 40px rgba(0, 0, 0, 0.6);
+}
+
+.window.pack,
+.window.coldfair {
+  width: min(100%, 900px);
+}
+
+.window .panel {
+  border: 0;
+  background: none;
+  padding: 12px 14px 14px;
+}
+
+.window .shut {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+  padding: 2px 8px;
+}
+
+.window .slots,
+.window .recipes {
+  max-height: none;
+}
+
+.window .slots li,
+.window .recipes li {
+  align-items: center;
+}
+
+.window .panel h2 {
+  font-size: var(--head);
+  line-height: 1.1;
+  margin-bottom: 2px;
+}
+
+/* Two columns side by side: the pack beside its bench, the market beside its anvil. */
+.panel.pack,
+.panel.fair {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.panel.fair {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.col {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  align-content: start;
+}
+
+/* The pack: eight slots across, six down, as the chain keeps them. */
+.cells {
+  display: grid;
+  grid-template-columns: repeat(8, 44px);
+  gap: 4px;
+}
+
+.cell {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  background: var(--dusk);
+  border: 2px solid var(--night);
+  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.cell.empty {
+  opacity: 0.6;
+}
+
+.cell .bare {
+  all: unset;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.cell .bare:focus-visible {
+  outline: 2px solid var(--teal);
+}
+
+.cell:hover {
+  border-color: var(--soft);
+}
+
+.cell.chosen {
+  border-color: var(--snow);
+  background: var(--night);
+}
+
+.cell.equipped {
+  border-color: var(--gold);
+  box-shadow: inset 0 0 0 2px var(--bark);
+}
+
+.cell.rarity-1 { background: #33503a; }
+.cell.rarity-2 { background: #2f4a6b; }
+.cell.rarity-3 { background: #54406e; }
+.cell.rarity-4 { background: #7a5a26; }
+
+.cell .count {
+  position: absolute;
+  right: 2px;
+  bottom: 0;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--snow);
+  text-shadow: 1px 1px 0 var(--ink), -1px 1px 0 var(--ink), 1px -1px 0 var(--ink), -1px -1px 0 var(--ink);
+}
+
+/* A demo grant is marked in the grid as well as in its name. */
+.cell .mark {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 6px;
+  height: 6px;
+  background: var(--teal);
+  border: 1px solid var(--ink);
+}
+
+.icon.coal { filter: brightness(0.35) saturate(0.4); }
+.icon.stone { filter: grayscale(1) brightness(0.9); }
+.icon.gilded { filter: sepia(1) saturate(3.2) hue-rotate(-12deg) brightness(1.15); }
+
+.detail {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 10px;
+  align-items: center;
+  width: 380px;
+  max-width: 100%;
+  min-height: 92px;
+  padding: 8px;
+  background: rgba(59, 54, 67, 0.6);
+  border: 1px solid var(--night);
+}
+
+.detail.dim {
+  display: block;
+}
+
+.detail .what {
+  font-size: var(--text);
+  line-height: 1.25;
+}
+
+.detail .tag {
+  color: var(--gold);
+}
+
+.detail .acts {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  padding-right: 96px;
+}
+
+.tabs [aria-selected="true"] {
+  color: var(--gold);
+  border-color: var(--gold);
+}
+
+.window .recipes {
+  max-height: 356px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.window .recipes button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 8px;
+}
+
+.window .slots .what {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  white-space: normal;
+}
+
+.window .slots .acts {
+  align-items: center;
+  gap: 8px;
+}
+
+.window .fodder {
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.thawed {
+  display: grid;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--night);
+}
+
+.proof {
+  color: var(--moss);
+}
+
+/* The rollup feed: a strip in the corner, up while you play. */
+.feed-dock {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 5;
+  width: 300px;
+  max-width: calc(100% - 16px);
+  pointer-events: none;
+}
+
+.feed-dock .panel {
+  padding: 6px 8px;
+  background: rgba(20, 27, 27, 0.82);
+  border-color: var(--teal);
+}
+
+.feed-dock li:nth-child(n + 7) {
+  display: none;
+}
+
+.feed-dock a {
+  pointer-events: auto;
+}
+
+@media (max-width: 760px) {
+  .panel.pack,
+  .panel.fair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cells {
+    grid-template-columns: repeat(6, 44px);
+  }
+}
+
+.icon {
+  object-fit: contain;
+}
+
+.window select,
+.window input:not([type="checkbox"]) {
+  min-width: 0;
+  padding: 5px 6px;
+  font: inherit;
+  font-size: var(--text);
+  color: var(--snow);
+  background: var(--dusk);
+  border: 2px solid var(--night);
+}
+
+.window .row {
+  display: flex;
+  gap: 6px;
+}
+
+.window .row select:first-child {
+  flex: 1;
+}
+
+.window .fodder label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: var(--text);
+}
+
+/* A long item name must shrink its picker, not push the price out of the column. */
+.col > * {
+  min-width: 0;
+}
+
+.window .row select {
+  flex: 0 0 auto;
+}
+
+.window .row select:first-child {
+  flex: 1 1 0;
+}

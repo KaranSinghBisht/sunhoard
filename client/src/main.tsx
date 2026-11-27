@@ -4,6 +4,7 @@ import { uiText } from "./content/text";
 import { Guide } from "./ui/Guide";
 import { beginTale, firstVisit, useTale } from "./game/story/tale";
 import "./styles.css";
+import "./windows.css";
 
 const Live = lazy(() => import("./LiveRoot"));
 const Practice = lazy(() => import("./ui/Practice"));
